@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: voicerag
+    env: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: paraphrase-multilingual-MiniLM-L12-v2

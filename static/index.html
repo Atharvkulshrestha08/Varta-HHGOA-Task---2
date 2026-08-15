@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VartaLaap (वार्तालाप) — Multilingual Voice-Enabled RAG Intelligence</title>
+    <meta name="description" content="VartaLaap (वार्तालाप) — Real-time Voice-Enabled Multilingual RAG Search across Hindi, Bengali, Tamil, Telugu, and English. Powered by Sarvam AI STT, FAISS, and Gemini Flash.">
+    <meta name="keywords" content="VartaLaap, वार्तालाप, Voice RAG, Multilingual AI, Sarvam AI, FAISS, Gemini Flash, Hacker House Goa, Voice Search, Indic AI">
+    
+    <!-- Favicon & Social Preview -->
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="apple-touch-icon" href="/static/logo.png">
+    
+    <!-- OpenGraph & Twitter Cards -->
+    <meta property="og:title" content="Vartaलाप (वार्तालाप) — Multilingual Voice RAG">
+    <meta property="og:description" content="Vartaलाप: Speak a question in 5 Indian languages and get grounded AI answers in sub-seconds.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://vartalaap.onrender.com">
+    <meta property="og:image" content="/static/logo.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vartaलाप (वार्तालाप) — Multilingual Voice RAG">
+    <meta name="twitter:description" content="Enterprise voice-enabled search for Indic languages built for Hacker House Goa 2026.">
+    <meta name="twitter:image" content="/static/logo.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Local Schema (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "VartaLaap (वार्तालाप)",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web",
+      "description": "VartaLaap: Voice-enabled multilingual RAG system supporting Hindi, Bengali, Tamil, Telugu, and English.",
+      "author": {
+        "@type": "Organization",
+        "name": "Hacker House Goa 2026 Team"
+      }
+    }
+    </script>
+</head>
+<body>
+    <!-- ═══ Background Animation & Site Deco ═══ -->
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    
+    <div class="site-deco" aria-hidden="true">
+        <svg width="0" height="0" class="hh-defs">
+            <symbol id="hhPalm" viewBox="0 0 200 440">
+                <g stroke-linecap="round">
+                    <path d="M104 438 Q120 300 96 96" stroke="#000" stroke-width="24" fill="none"/>
+                    <path d="M104 438 Q120 300 96 96" stroke="#FFD500" stroke-width="14" fill="none"/>
+                </g>
+                <g fill="#F5D520" stroke="#000" stroke-width="5">
+                    <path transform="rotate(-110 96 96)" d="M96 96 C 50 50 28 24 36 -20 C 72 -4 94 44 96 96 Z"/>
+                    <path transform="rotate(-70 96 96)" d="M96 96 C 44 44 20 18 30 -22 C 66 -8 92 42 96 96 Z"/>
+                    <path transform="rotate(-30 96 96)" d="M96 96 C 40 40 14 12 26 -24 C 62 -10 90 40 96 96 Z"/>
+                    <path transform="rotate(5 96 96)" d="M96 96 C 42 42 16 14 28 -22 C 64 -6 92 42 96 96 Z"/>
+                    <path transform="rotate(40 96 96)" d="M96 96 C 48 44 22 18 34 -18 C 70 -4 94 44 96 96 Z"/>
+                    <path transform="rotate(75 96 96)" d="M96 96 C 56 48 30 24 42 -14 C 74 0 96 46 96 96 Z"/>
+                    <path transform="rotate(105 96 96)" d="M96 96 C 62 54 40 34 50 -4 C 80 10 97 48 96 96 Z"/>
+                </g>
+                <circle cx="86" cy="90" r="8" fill="#F5D520" stroke="#000" stroke-width="4"/>
+                <circle cx="106" cy="90" r="8" fill="#F5D520" stroke="#000" stroke-width="4"/>
+            </symbol>
+        </svg>
+        <svg class="deco-palm deco-palm-left" viewBox="0 0 200 440"><use href="#hhPalm"/></svg>
+        <svg class="deco-palm deco-palm-right" viewBox="0 0 200 440"><use href="#hhPalm"/></svg>
+    </div>
+
+    <!-- ═══ Main Container ═══ -->
+    <div class="container">
+        <!-- Header & Nav Links -->
+        <header class="site-header" id="top">
+            <div class="header-inner">
+                <a class="brand" href="#top" aria-label="Vartaलाप — home">
+                    <span class="brand-mark" aria-hidden="true">
+                        <img src="/static/logo.png" alt="Vartaलाप Logo" class="brand-logo-img">
+                    </span>
+                    <span class="brand-text"><b>Varta<span class="brand-accent">लाप</span></b><i>MULTILINGUAL VOICE RAG</i></span>
+                </a>
+                
+                <!-- Navigation Links (Pillar #3) -->
+                <nav class="nav-links">
+                    <a href="#query-section">Live Demo</a>
+                    <a href="#analytics-panel">Analytics</a>
+                    <a href="#faq-section">FAQs</a>
+                    <a href="#event-section">HHG 2026</a>
+                    <a href="#" id="header-privacy-link" class="nav-privacy-btn">🔒 Safety & Privacy</a>
+                </nav>
+
+                <div class="header-badges">
+                    <span class="badge badge-sla" title="P50 Post-STT RAG Latency SLA">⚡ RAG SLA &lt; 200ms</span>
+                    <span class="badge badge-green" id="health-badge">● Initializing</span>
+                    <span class="badge badge-blue" id="vectors-badge">105 vectors</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Breadcrumbs (Pillar #5) -->
+        <div class="breadcrumb-bar" aria-label="Breadcrumb navigation">
+            <span class="bc-item">Varta<span class="brand-accent">लाप</span></span>
+            <span class="bc-sep">/</span>
+            <span class="bc-item">Multilingual Search</span>
+            <span class="bc-sep">/</span>
+            <span class="bc-item active">Live Voice Dialogue</span>
+        </div>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-grid">
+                <div class="hero-copy">
+                    <p class="eyebrow">VARTAलाप · INDIC VOICE INTELLIGENCE · 2026</p>
+                    <h1>Talk to <span class="grad">your docs.</span></h1>
+                    <p class="lede">Speak naturally in Hindi, Bengali, Tamil, Telugu, or English. Get grounded answers powered by Vartaलाप's sub-200ms RAG retrieval and Gemini Flash.</p>
+                    
+                    <!-- CTA Above Fold (Pillar #2) -->
+                    <div class="hero-cta-bar">
+                        <a href="#query-section" class="cta-btn primary-cta">🎙️ Start Vartaलाप Dialogue</a>
+                        <a href="#faq-section" class="cta-btn secondary-cta">📘 Read Documentation</a>
+                    </div>
+
+                    <div class="hero-tag" aria-label="Share with hashtag">
+                        <span class="hero-tag-label">SHARE WITH</span>
+                        <span class="hero-tag-hash">#RAGInGoa</span>
+                    </div>
+                    <div class="hero-chips" aria-hidden="true">
+                        <span>Sarvam STT</span><span>FAISS Index</span><span>5-Pillar Guardrails</span><span>P50 SLA Target</span>
+                    </div>
+                </div>
+                <div class="hero-art" aria-label="Vartaलाप Logo Art">
+                    <div class="hero-logo-card">
+                        <img src="/static/logo.png" alt="Vartaलाप Logo Artwork" class="hero-logo-img">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ Main Content ═══ -->
+        <main class="main-grid" id="query-section">
+            <!-- Left: Query Panel -->
+            <section class="panel query-panel">
+                <div class="panel-header">
+                    <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        <div>
+                            <h2>Ask a Question</h2>
+                            <p>Speak or type in Hindi, Bengali, Tamil, Telugu, or English</p>
+                        </div>
+                        <button class="teach-toggle-btn" id="toggle-teach-btn" title="Teach Vartaलाप new real-time knowledge" type="button">
+                            🧠 Teach AI
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Real-Time Knowledge Ingestion Drawer -->
+                <div class="teach-drawer" id="teach-drawer" style="display: none;">
+                    <div class="teach-drawer-inner">
+                        <div class="teach-drawer-header">
+                            <span class="teach-drawer-title">💡 Teach Vartaलाप New Real-Time Facts</span>
+                            <button class="teach-drawer-close" id="teach-drawer-close" type="button">✕</button>
+                        </div>
+                        <p class="teach-drawer-desc">Feed new information (e.g. <i>"The 2025 ICC Champions Trophy winner is India, defeating New Zealand in the final."</i>). Gemini will synthesize and index it into FAISS vectors in real-time!</p>
+                        <form id="teach-form" class="teach-form">
+                            <textarea id="teach-input" rows="2" placeholder="Type or paste factual knowledge here (e.g. 2025/2026 sports, tech, current events)..." required></textarea>
+                            <div class="teach-form-actions">
+                                <span class="teach-status" id="teach-status"></span>
+                                <button type="submit" class="teach-submit-btn" id="teach-submit-btn">⚡ Expand & Index</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Language Selector -->
+                <div class="language-selector" id="language-selector">
+                    <button class="lang-btn active" data-lang="auto" id="lang-auto">🌐 Auto</button>
+                    <button class="lang-btn" data-lang="hi-IN" id="lang-hi">🇮🇳 हिन्दी</button>
+                    <button class="lang-btn" data-lang="bn-IN" id="lang-bn">🇮🇳 বাংলা</button>
+                    <button class="lang-btn" data-lang="ta-IN" id="lang-ta">🇮🇳 தமிழ்</button>
+                    <button class="lang-btn" data-lang="te-IN" id="lang-te">🇮🇳 తెలుగు</button>
+                </div>
+
+                <!-- Voice Input -->
+                <div class="voice-input-area">
+                    <div class="waveform-container" id="waveform-container">
+                        <canvas id="waveform-canvas" width="400" height="80"></canvas>
+                    </div>
+
+                    <div class="mic-wrapper" style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                        <button class="mic-button" id="mic-button" aria-label="Start recording microphone audio">
+                            <div class="mic-pulse"></div>
+                            <div class="mic-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="Microphone Icon">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                </svg>
+                            </div>
+                        </button>
+                        <span class="mic-label" id="mic-label">Tap to speak</span>
+                    </div>
+                </div>
+
+                <!-- Text Input Fallback -->
+                <div class="text-input-area">
+                    <div class="divider"><span>or type your question</span></div>
+                    <form id="text-form" class="text-form">
+                        <input type="text" id="text-input" placeholder="Type your question or 'Remember that: ...' here..." autocomplete="off">
+                        <button type="submit" class="send-btn" id="send-btn" aria-label="Send query">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="Send icon">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Processing Status -->
+                <div class="status-bar" id="status-bar" style="display: none;">
+                    <div class="status-spinner"></div>
+                    <span id="status-text">Processing...</span>
+                </div>
+            </section>
+
+            <!-- Right: Answer Panel -->
+            <section class="panel answer-panel" id="answer-panel">
+                <!-- Empty state -->
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" role="img" aria-label="Question Mark Icon">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </div>
+                    <h3>Ask me anything</h3>
+                    <p>Speak or type a question to get started. I remember previous turns in our dialogue and retrieve grounded answers in real time.</p>
+                </div>
+
+                <!-- Multi-Turn Conversation Thread (shown when active) -->
+                <div class="chat-thread-wrapper" id="chat-thread-wrapper" style="display: none;">
+                    <div class="chat-thread-header">
+                        <span class="chat-thread-title">💬 Continuous Dialogue Thread</span>
+                        <button class="reset-thread-btn" id="reset-thread-btn" type="button" title="Start new conversation / clear memory">🔄 New Topic</button>
+                    </div>
+                    <div class="chat-thread-messages" id="chat-thread-messages"></div>
+                </div>
+
+                <!-- Answer content (hidden initially) -->
+                <div class="answer-content" id="answer-content" style="display: none;">
+                    <div class="query-echo">
+                        <span class="query-label">Your question:</span>
+                        <p id="query-display"></p>
+                    </div>
+
+                    <div class="answer-card" id="answer-card">
+                        <div class="answer-header">
+                            <span class="answer-badge">✨ Answer</span>
+                            <div class="answer-meta">
+                                <span id="confidence-display" class="confidence"></span>
+                                <span id="language-display" class="language-tag"></span>
+                            </div>
+                        </div>
+                        <div class="answer-text" id="answer-text"></div>
+
+                        <!-- HITL Feedback Buttons (Pillar #4, #21) -->
+                        <div class="hitl-feedback-container" id="hitl-container">
+                            <span class="hitl-label">Was this answer helpful?</span>
+                            <button class="hitl-btn hitl-up" id="hitl-up-btn" title="Grounded and accurate">👍 Correct</button>
+                            <button class="hitl-btn hitl-down" id="hitl-down-btn" title="Flag hallucination / inaccurate">👎 Inaccurate</button>
+                            <span class="hitl-status" id="hitl-status"></span>
+                        </div>
+
+                        <!-- Guardrail flags -->
+                        <div class="guardrail-flags" id="guardrail-flags" style="display: none;"></div>
+                    </div>
+
+                    <!-- Sources -->
+                    <div class="sources-section" id="sources-section">
+                        <h4>📚 Source Passages</h4>
+                        <div class="sources-list" id="sources-list"></div>
+                    </div>
+
+                    <!-- Latency breakdown -->
+                    <div class="latency-section">
+                        <h4>⚡ Latency Breakdown</h4>
+                        <div class="latency-bars" id="latency-bars"></div>
+                        <div class="total-latency">
+                            Post-STT RAG Pipeline: <strong id="total-latency">—</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ═══ Analytics Dashboard ═══ -->
+        <section class="panel analytics-panel" id="analytics-panel">
+            <div class="panel-header">
+                <h2>📊 Latency Analytics & Percentiles</h2>
+                <button class="refresh-btn" id="refresh-analytics" aria-label="Refresh analytics">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" role="img" aria-label="Refresh icon">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="analytics-grid" id="analytics-grid">
+                <div class="metric-card" id="metric-p50">
+                    <div class="metric-label">P50 Latency (Post-STT)</div>
+                    <div class="metric-value" id="val-p50">—</div>
+                    <div class="metric-unit">ms (target &lt; 200ms)</div>
+                </div>
+                <div class="metric-card" id="metric-p70">
+                    <div class="metric-label">P70 Latency</div>
+                    <div class="metric-value" id="val-p70">—</div>
+                    <div class="metric-unit">ms</div>
+                </div>
+                <div class="metric-card" id="metric-p100">
+                    <div class="metric-label">P100 Max</div>
+                    <div class="metric-value" id="val-p100">—</div>
+                    <div class="metric-unit">ms worst-case</div>
+                </div>
+                <div class="metric-card" id="metric-queries">
+                    <div class="metric-label">Total Queries</div>
+                    <div class="metric-value" id="val-queries">0</div>
+                    <div class="metric-unit">processed</div>
+                </div>
+            </div>
+            <div class="stage-breakdown" id="stage-breakdown"></div>
+        </section>
+
+        <!-- ═══ FAQs Accordion (Pillar #7) ═══ -->
+        <section class="panel faq-panel" id="faq-section">
+            <div class="panel-header">
+                <h2>❓ Frequently Asked Questions</h2>
+                <p>Learn how Sarvam STT, FAISS, and Gemini Flash power VoiceRAG</p>
+            </div>
+            <div class="faq-list">
+                <details class="faq-item">
+                    <summary class="faq-question">How does multilingual voice search work?</summary>
+                    <div class="faq-answer">
+                        When you record audio in Hindi, Bengali, Tamil, Telugu, or English, it is streamed to Sarvam AI's Saaras v3 STT model. The transcript is converted to a vector embedding using MiniLM-L12, matched against indexed passages via FAISS, and passed to Gemini Flash to generate a grounded answer in the same language.
+                    </div>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">How are hallucinations prevented?</summary>
+                    <div class="faq-answer">
+                        VoiceRAG implements a 5-Pillar Enterprise AI Defense suite: strict prompt lockdown, prompt leak protection, zero-tolerance illegal content filtering, code injection isolation, and token-overlap hallucination checking. If context confidence is below 0.35, the system formally refuses to answer.
+                    </div>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">What is the latency SLA promise?</summary>
+                    <div class="faq-answer">
+                        Our P50 latency target for the complete retrieval and generation pipeline (excluding audio transmission) is under 800ms. You can track live latency metrics in the Analytics dashboard above.
+                    </div>
+                </details>
+                <details class="faq-item">
+                    <summary class="faq-question">Is my voice recording stored permanently?</summary>
+                    <div class="faq-answer">
+                        No. Audio data is processed in-memory solely for transcription and is immediately discarded after generating the transcript. We prioritize user privacy and zero permanent audio retention.
+                    </div>
+                </details>
+            </div>
+        </section>
+
+        <!-- ═══ Hacker House Goa Event Card (Pillar #14, #20) ═══ -->
+        <section class="panel event-panel" id="event-section">
+            <div class="event-card-inner">
+                <div class="event-info">
+                    <span class="event-badge">🌴 Hacker House Goa 2026</span>
+                    <h3>Building the Future of Indic AI</h3>
+                    <p>October 28–31, 2026 · Goa, India</p>
+                    <p class="event-desc">247 builders gathered in Goa to ship production-grade AI systems, voice pipelines, and sovereign LLM infrastructure.</p>
+                </div>
+                <div class="team-credits">
+                    <h4>👨‍💻 Developed By</h4>
+                    <p><b>Task 2 Engineering Team</b></p>
+                    <p>Built with Sarvam AI STT, FAISS IVF, Gemini 2.0 Flash, and FastAPI.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="site-footer">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 40 40" role="img">
+                            <rect width="40" height="40" rx="10" fill="#0B5D3A" stroke="#000" stroke-width="2.5"/>
+                            <circle cx="20" cy="17" r="8" fill="#F5D520" stroke="#000" stroke-width="2.5"/>
+                            <path d="M6 28h28" stroke="#FFF" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 6"/>
+                        </svg>
+                    </span>
+                    <span><b>HACKER HOUSE GOA 2026</b><i>247 builders · Goa, India</i></span>
+                </div>
+                <div class="footer-links">
+                    <a href="https://hhgoa.com" target="_blank" rel="noopener">hhgoa.com</a>
+                    <span class="dot">·</span>
+                    <a href="#" id="privacy-link">Privacy Policy</a>
+                    <span class="dot">·</span>
+                    <a href="/robots.txt" target="_blank">robots.txt</a>
+                    <span class="dot">·</span>
+                    <a href="/sitemap.xml" target="_blank">sitemap.xml</a>
+                    <span class="dot">·</span>
+                    <span class="footer-hash">#RAGInGoa</span>
+                </div>
+                <p class="footer-note">Ship things that matter. &copy; 2026 Hacker House Goa · Task 2 Master Edition</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Sticky Mobile CTA Mic Button (Pillar #9) -->
+    <div class="sticky-mobile-cta" id="sticky-mobile-cta">
+        <button class="mobile-mic-btn" id="mobile-mic-btn" aria-label="Sticky voice query microphone">
+            🎙️ Speak Question
+        </button>
+    </div>
+
+    <!-- Privacy Policy & AI Safety Governance Modal -->
+    <dialog id="privacy-modal" class="custom-modal" aria-labelledby="modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span class="modal-icon">🛡️</span>
+                    <div>
+                        <h2 id="modal-title">Privacy Policy & Responsible AI Charter</h2>
+                        <p class="modal-subtitle">Operational Boundaries, Zero-Retention Voice Privacy & 5-Pillar Guardrails</p>
+                    </div>
+                </div>
+                <button id="close-privacy-btn" class="modal-close-btn" aria-label="Close dialog">✕</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Section 1: Voice Privacy -->
+                <div class="policy-card">
+                    <div class="policy-header">
+                        <span class="policy-pill">1. ZERO DATA RETENTION</span>
+                        <h3>🎙️ Ephemeral Voice Processing & Biometric Privacy</h3>
+                    </div>
+                    <p>VartaLaap (वार्तालाप) is engineered with a strict <strong>Zero-Data-Retention</strong> policy for all voice inputs:</p>
+                    <ul>
+                        <li><strong>In-Memory Processing:</strong> Audio streams (WAV, WebM, Opus) recorded through your browser mic are processed ephemerally in RAM and forwarded directly to the Sarvam AI speech model.</li>
+                        <li><strong>No Audio Storage:</strong> Audio recordings are never saved to disk, persistent databases, or telemetry logs.</li>
+                        <li><strong>Zero Biometric Harvesting:</strong> No voiceprints, pitch analysis, speaker identification, or acoustic biomarkers are ever collected or stored.</li>
+                    </ul>
+                </div>
+
+                <!-- Section 2: 5-Pillar Guardrails -->
+                <div class="policy-card">
+                    <div class="policy-header">
+                        <span class="policy-pill">2. GOVERNANCE SUITE</span>
+                        <h3>🏰 5-Pillar Enterprise Safety & Operational Restrictions</h3>
+                    </div>
+                    <p>To ensure responsible AI interactions, our pipeline enforces 5 real-time defense pillars on every query:</p>
+                    
+                    <div class="guardrail-grid">
+                        <div class="guardrail-box">
+                            <span class="g-tag">Pillar 1: Anti-Jailbreak</span>
+                            <p>Blocks adversarial prompt injections, DAN exploits, roleplay bypasses, and unauthorized persona overrides.</p>
+                        </div>
+                        <div class="guardrail-box">
+                            <span class="g-tag">Pillar 2: Secret Protection</span>
+                            <p>Protects backend system prompts, environment secrets, and internal endpoints against extraction attacks.</p>
+                        </div>
+                        <div class="guardrail-box">
+                            <span class="g-tag">Pillar 3: Actionable Safety</span>
+                            <p>Zero-tolerance rejection of weapon fabrication, malware creation, cyberattack tutorials, and illicit substances.</p>
+                        </div>
+                        <div class="guardrail-box">
+                            <span class="g-tag">Pillar 4: Structural Isolation</span>
+                            <p>Neutralizes template injection (Jinja2, template literals) and treats all user input strictly as inert natural language strings.</p>
+                        </div>
+                        <div class="guardrail-box full-width">
+                            <span class="g-tag">Pillar 5: Output Verification & PII Redaction</span>
+                            <p>Pre-transmission scanner actively checks and redacts leaked API tokens, PAN/Aadhaar patterns, internal filepaths, or database connection strings.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Grounding & Fallback Transparency -->
+                <div class="policy-card">
+                    <div class="policy-header">
+                        <span class="policy-pill">3. TRANSPARENCY & CITATIONS</span>
+                        <h3>📚 Hybrid Grounding & General Knowledge Fallback</h3>
+                    </div>
+                    <ul>
+                        <li><strong>In-Domain Grounding:</strong> Questions regarding indexed topics (Indian languages, geography, governance, Hacker House Goa) are answered strictly from retrieved vector chunks and cited with exact passage scores.</li>
+                        <li><strong>General Knowledge Reasoning:</strong> If a query falls outside the local dataset, the system transparently notes <code>[Source: General AI Knowledge]</code> and suppresses unrelated vector noise.</li>
+                        <li><strong>Hallucination Defense:</strong> Responses undergo token-overlap validation before rendering to flag low-grounded claims.</li>
+                    </ul>
+                </div>
+
+                <!-- Section 4: Acceptable Use -->
+                <div class="policy-card">
+                    <div class="policy-header">
+                        <span class="policy-pill">4. ACCEPTABLE USE</span>
+                        <h3>⚖️ User Rights & Permitted Interactions</h3>
+                    </div>
+                    <p>Users are free to test queries in 5 Indic languages, perform latency benchmarks, and ask general knowledge questions. Exploitative probing, denial-of-service attempts, or distribution of harmful payloads will result in immediate IP rate-limiting and connection termination.</p>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <span class="modal-date">Last Updated: August 2026 · Hacker House Goa</span>
+                <button id="close-privacy-btn-bottom" class="primary-btn">I Understand & Accept</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
