@@ -267,8 +267,12 @@ class MockSTTClient:
     """
 
     async def transcribe(
-        self, audio_data: bytes, content_type: str = "audio/wav",
+        self,
+        audio_data: bytes,
+        content_type: str = "audio/wav",
         language_hint: Optional[str] = None,
+        zone: Optional[str] = None,
+        **kwargs,
     ) -> dict:
         return {
             "transcript": "[Mock STT - use text input or configure SARVAM_API_KEY]",
