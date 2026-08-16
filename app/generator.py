@@ -308,17 +308,17 @@ class GeminiGenerator:
     def __init__(
         self,
         api_key: str,
-        model_name: str = "models/gemini-1.5-flash",
-        max_output_tokens: int = 380,
+        model_name: str = "gemini-flash-latest",
+        max_output_tokens: int = 120,
         temperature: float = 0.1,
     ):
         genai.configure(api_key=api_key)
         self.primary_model_name = model_name
         self.fallback_models = [
-            "models/gemini-1.5-flash",
-            "models/gemini-2.0-flash",
-            "models/gemini-1.5-pro",
-            model_name,
+            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-pro-latest",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature

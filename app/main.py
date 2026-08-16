@@ -112,7 +112,7 @@ async def lifespan(app: FastAPI):
 
     if groq_key and groq_key != "your_groq_api_key_here":
         generator = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key)
-        logger.info("[OK] Groq LPU generator initialized (Ultra-low ~60-90ms latency) with Gemini backup")
+        logger.info("[OK] Groq LPU generator initialized (llama-3.1-8b-instant @ 850 tok/s) with Gemini backup")
     elif gemini_key and gemini_key != "your_gemini_api_key_here":
         generator = GeminiGenerator(api_key=gemini_key)
         logger.info("[OK] Gemini generator initialized")

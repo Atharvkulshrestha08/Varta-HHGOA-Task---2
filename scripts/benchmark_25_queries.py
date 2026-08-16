@@ -82,13 +82,13 @@ async def run_benchmark():
     # Generator
     groq_key = os.getenv("GROQ_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if groq_key:
+    if gemini_key:
+        gen = GeminiGenerator(api_key=gemini_key, model_name="gemini-flash-latest", max_output_tokens=120)
+        print("🟢 Engine: Google Gemini Cloud (Mumbai DC — Low Latency)")
+    elif groq_key:
         gen = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="llama-3.1-8b-instant", max_output_tokens=100)
-        print("🟢 Engine: Groq LPU (llama-3.1-8b-instant @ 100 max tokens)")
-        await gen.prewarm()  # Pre-warm TLS connection
-    elif gemini_key:
-        gen = GeminiGenerator(api_key=gemini_key)
-        print("🟡 Engine: Gemini Flash")
+        print("🟡 Engine: Groq LPU (llama-3.1-8b-instant)")
+        await gen.prewarm()
     else:
         gen = MockGenerator()
         print("⚪ Engine: Mock")
