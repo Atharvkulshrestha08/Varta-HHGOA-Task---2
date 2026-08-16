@@ -307,7 +307,7 @@ async def retry_async(
     max_attempts: int = 3,
     base_delay: float = 0.1,
     max_delay: float = 2.0,
-    exceptions: tuple = (Exception,),
+    exceptions: tuple[type[BaseException], ...] = (Exception,),
 ):
     """
     Retry an async function with exponential backoff.
@@ -315,7 +315,7 @@ async def retry_async(
     Delay doubles each attempt: 0.1s → 0.2s → 0.4s → ...
     Capped at max_delay.
     """
-    last_exception = None
+    last_exception: Optional[BaseException] = None
     for attempt in range(max_attempts):
         try:
             return await func()
@@ -330,8 +330,7 @@ async def retry_async(
                 await asyncio.sleep(delay)
     if last_exception is not None:
         raise last_exception
-    else:
-        raise RuntimeError("retry_async failed without capturing an exception")
+    raise RuntimeError("retry_async failed without capturing an exception")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -668,14 +667,16 @@ class PipelineHarness:
                 total_latency_ms=sum(record.stages.values()),
             )
 
-        # ── Step 5b: Live Wikipedia Intelligence Augmentation ──
+        # ── Step 5b: Live Wikipedia Intelligence Augmentation (Strict 350ms Sub-Second Cap) ──
         top_score = max((r.get("score", 0) for r in results), default=0.0)
-        # If vector search confidence is below 0.45 or results are empty, fetch encyclopedic context from Wikipedia
         if top_score < 0.45 or len(results) == 0:
             try:
                 with self.analytics.time_stage(record, "wikipedia_retrieval"):
-                    wiki_data = await self.wiki_retriever.fetch_topic_summary(
-                        query=search_text, language=language
+                    wiki_data = await asyncio.wait_for(
+                        self.wiki_retriever.fetch_topic_summary(
+                            query=search_text, language=language
+                        ),
+                        timeout=0.35,  # Strict sub-second cap: never block pipeline for more than 350ms
                     )
                 if wiki_data and wiki_data.get("extract"):
                     logger.info(f"Wikipedia intelligence matched: '{wiki_data.get('title')}'")
@@ -751,8 +752,8 @@ class PipelineHarness:
                         language=language,
                         conversation_history=conversation_history,
                     ),
-                    max_attempts=2,
-                    base_delay=0.3,
+                    max_attempts=1,
+                    base_delay=0.0,
                 )
 
             if not gen_result["success"]:

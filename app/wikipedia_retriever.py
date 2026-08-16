@@ -58,9 +58,9 @@ STOP_WORDS = {
 
 
 class WikipediaRetriever:
-    """Async client for Wikipedia Opensearch & Summary REST APIs."""
+    """Async client for Wikipedia Opensearch & Summary REST APIs with sub-second timeout."""
 
-    def __init__(self, timeout: float = 3.0):
+    def __init__(self, timeout: float = 0.35):
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
         self._headers = {

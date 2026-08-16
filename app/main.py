@@ -37,7 +37,7 @@ from app.analytics import LatencyAnalytics
 from app.guardrails import GuardrailsEngine
 from app.harness import PipelineHarness, QueryRequest, LearnRequest
 from app.stt import SarvamSTTClient, MockSTTClient, REGIONAL_ZONES
-from app.generator import GeminiGenerator, MockGenerator
+from app.generator import GroqGenerator, GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
 from app.wikipedia_retriever import WikipediaRetriever
 
@@ -106,14 +106,19 @@ async def lifespan(app: FastAPI):
         stt_client = MockSTTClient()
         logger.warning("[WARNING] No SARVAM_API_KEY - using mock STT client")
 
-    # 4. Initialize Gemini generator
+    # 4. Initialize answer generator (Groq LPU primary with Gemini backup)
+    groq_key = os.getenv("GROQ_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key and gemini_key != "your_gemini_api_key_here":
+
+    if groq_key and groq_key != "your_groq_api_key_here":
+        generator = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key)
+        logger.info("[OK] Groq LPU generator initialized (Ultra-low ~60-90ms latency) with Gemini backup")
+    elif gemini_key and gemini_key != "your_gemini_api_key_here":
         generator = GeminiGenerator(api_key=gemini_key)
         logger.info("[OK] Gemini generator initialized")
     else:
         generator = MockGenerator()
-        logger.warning("[WARNING] No GEMINI_API_KEY - using mock generator")
+        logger.warning("[WARNING] No GROQ_API_KEY or GEMINI_API_KEY - using mock generator")
 
     # 5. Initialize guardrails (5-Pillar Defense Suite)
     guardrails = GuardrailsEngine(
