@@ -508,26 +508,49 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Hands-Free Wake Word Bar (Jarvis / Friday / Alexa Style)
+   Voice Guide Instructions Card
    ═══════════════════════════════════════════════════════════════ */
-.wakeword-bar {
+.mic-instructions-card {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    background: rgba(18, 30, 20, 0.7);
-    border: 1.5px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 8px 16px;
-    margin-bottom: 20px;
-    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    gap: 6px;
+    background: rgba(18, 30, 20, 0.85);
+    border: 1.5px solid var(--accent-primary);
+    border-radius: 12px;
+    padding: 10px 18px;
+    margin-top: 6px;
+    max-width: 480px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.wakeword-toggle-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.mic-inst-badge {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-primary);
+    background: rgba(46, 204, 113, 0.15);
+    padding: 2px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
+.mic-inst-text {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.mic-inst-text strong {
+    color: var(--accent-primary);
+}
+
+.mic-inst-text i {
+    color: #cbd5e1;
+}
 }
 
 .wakeword-title {

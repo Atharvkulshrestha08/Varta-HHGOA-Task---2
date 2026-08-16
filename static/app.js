@@ -339,18 +339,18 @@ async function startRecording() {
                 state.silenceStart = null;
                 els.micLabel.textContent = 'Listening... (Speaking detected)';
             } else if (!state.hasSpoken) {
-                // User has not started speaking yet
-                if (timeSinceStart >= 5000) {
-                    console.log('[VAD] No speech detected within 5 seconds. Closing microphone.');
-                    els.micLabel.textContent = 'No speech detected (5s silence)';
+                // User has not started speaking yet (Auto-close after 2 seconds)
+                if (timeSinceStart >= 2000) {
+                    console.log('[VAD] No speech detected within 2 seconds. Closing microphone.');
+                    els.micLabel.textContent = 'No speech detected (2s silence)';
                     stopRecording(true); // cancelled due to initial silence
                 }
             } else if (state.hasSpoken) {
-                // User spoke previously and is now silent
+                // User spoke previously and is now silent (Auto-submit after 2 seconds)
                 if (!state.silenceStart) {
                     state.silenceStart = Date.now();
-                } else if (Date.now() - state.silenceStart >= 2500) {
-                    console.log('[VAD] Speech concluded (2.5s silence). Auto-submitting recording...');
+                } else if (Date.now() - state.silenceStart >= 2000) {
+                    console.log('[VAD] Speech concluded (2s silence). Auto-submitting recording...');
                     els.micLabel.textContent = 'Processing speech...';
                     stopRecording(false);
                 }
@@ -373,7 +373,7 @@ function stopRecording(cancelled = false) {
     state.isRecording = false;
     state.cancelledRecording = cancelled;
     els.micButton.classList.remove('recording');
-    els.micLabel.textContent = cancelled ? 'No speech detected (5s silence)' : 'Processing speech...';
+    els.micLabel.textContent = cancelled ? 'No speech detected (2s silence)' : 'Processing speech...';
     cancelAnimationFrame(state.animationFrame);
 
     if (state.silenceTimer) clearInterval(state.silenceTimer);

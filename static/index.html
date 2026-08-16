@@ -200,32 +200,6 @@
                     </div>
                 </div>
 
-                <!-- Hands-Free Voice Wake-Word Controller (Alexa / Jarvis / Friday Style) -->
-                <div class="wakeword-bar" id="wakeword-bar">
-                    <div class="wakeword-toggle-wrap">
-                        <label class="wakeword-switch" title="Toggle hands-free wake word listening">
-                            <input type="checkbox" id="wakeword-toggle" checked>
-                            <span class="wakeword-slider"></span>
-                        </label>
-                        <span class="wakeword-title">🎙️ Hands-Free Wake Word:</span>
-                    </div>
-                    <div class="wakeword-controls">
-                        <select id="wakeword-select" class="wakeword-select" aria-label="Select Wake Word">
-                            <option value="jarvis">🤖 "Jarvis"</option>
-                            <option value="friday">🚀 "Friday"</option>
-                            <option value="tadashi">🩺 "Tadashi"</option>
-                            <option value="varta">🇮🇳 "Varta"</option>
-                            <option value="alexa">🔊 "Alexa"</option>
-                            <option value="custom">✏️ Custom Word...</option>
-                        </select>
-                        <input type="text" id="wakeword-custom-input" class="wakeword-custom-input" placeholder="Type custom word..." style="display: none;">
-                    </div>
-                    <div class="wakeword-status-badge" id="wakeword-status">
-                        <span class="wakeword-pulse-dot"></span>
-                        <span id="wakeword-status-text">Listening for "Jarvis"...</span>
-                    </div>
-                </div>
-
                 <!-- Voice Input -->
                 <div class="voice-input-area">
                     <div class="waveform-container" id="waveform-container">
@@ -244,7 +218,14 @@
                                 </svg>
                             </div>
                         </button>
-                        <span class="mic-label" id="mic-label">Tap to speak</span>
+                        <span class="mic-label" id="mic-label">Click mic to record your question</span>
+                        <div class="mic-instructions-card">
+                            <span class="mic-inst-badge">🎙️ Voice Guide</span>
+                            <p class="mic-inst-text">
+                                Click the mic to <strong>start recording</strong> your question, and <strong>click again</strong> when finished.<br>
+                                ⚡ <i>Or simply stop speaking for <strong>2 seconds</strong> — the system will automatically process your question!</i>
+                            </p>
+                        </div>
                     </div>
                 </div>
 
