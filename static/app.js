@@ -21,8 +21,10 @@ const state = {
     audioContext: null,
     analyser: null,
     animationFrame: null,
-    selectedZone: 'zone_south',
-    selectedLanguage: 'auto',
+    selectedZone: localStorage.getItem('varta_zone') || 'zone_all',
+    selectedLanguage: localStorage.getItem('varta_lang') || 'auto',
+    wakeWord: localStorage.getItem('varta_wakeword') || 'jarvis',
+    wakeWordEnabled: localStorage.getItem('varta_wakeword_enabled') !== 'false',
     conversationHistory: [],
     sessionId: 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
 };
@@ -154,6 +156,13 @@ function renderZonalLanguages(zoneKey) {
     const zoneConfig = ZONE_DATA[zoneKey] || ZONE_DATA['zone_all'];
     if (!els.languageSelector) return;
 
+    // Check if previously selected language exists in this zone, otherwise default to auto
+    const langExists = zoneConfig.languages.some(l => l.code === state.selectedLanguage);
+    if (!langExists) {
+        state.selectedLanguage = 'auto';
+        localStorage.setItem('varta_lang', 'auto');
+    }
+
     els.languageSelector.innerHTML = zoneConfig.languages.map(lang => {
         const isActive = state.selectedLanguage === lang.code ? 'active' : '';
         const isAnchor = lang.isAnchor ? 'anchor-lang' : '';
@@ -166,26 +175,35 @@ function renderZonalLanguages(zoneKey) {
             els.languageSelector.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             state.selectedLanguage = btn.dataset.lang;
+            localStorage.setItem('varta_lang', state.selectedLanguage);
             console.log('[ZONE] Selected language:', state.selectedLanguage, 'in zone:', state.selectedZone);
         });
     });
 }
 
-// Attach Zone Tab Click Listeners
+// Attach Zone Tab Click Listeners and restore saved tab
 if (els.zonalTabs) {
     els.zonalTabs.querySelectorAll('.zone-tab').forEach(tab => {
+        if (tab.dataset.zone === state.selectedZone) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+
         tab.addEventListener('click', () => {
             els.zonalTabs.querySelectorAll('.zone-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             state.selectedZone = tab.dataset.zone;
-            state.selectedLanguage = 'auto'; // Reset to auto within selected zone
+            state.selectedLanguage = 'auto';
+            localStorage.setItem('varta_zone', state.selectedZone);
+            localStorage.setItem('varta_lang', state.selectedLanguage);
             renderZonalLanguages(state.selectedZone);
             console.log('[ZONE] Switched to zone:', state.selectedZone);
         });
     });
 }
 
-// Initial render for default South Zone
+// Initial render for active Zone
 renderZonalLanguages(state.selectedZone);
 
 // ═══════════════════════════════════════════════════════════════
@@ -479,6 +497,9 @@ async function submitVoiceQuery(audioBlob) {
         showError('Failed to process voice query. Please try again or use text input.');
     } finally {
         hideStatus();
+        if (window.rearmWakeWordListener) {
+            window.rearmWakeWordListener();
+        }
     }
 }
 
@@ -1022,9 +1043,225 @@ async function submitTeachKnowledge(factText) {
     }
 }
 
-// Initial checks
+// ═══════════════════════════════════════════════════════════════
+// Hands-Free Wake Word Engine (Jarvis / Friday / Alexa Style)
+// ═══════════════════════════════════════════════════════════════
+let wakeRecognition = null;
+let wakeRestartTimer = null;
+
+function initWakeWordListener() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const toggle = $('wakeword-toggle');
+    const select = $('wakeword-select');
+    const customInput = $('wakeword-custom-input');
+    const statusText = $('wakeword-status-text');
+
+    if (!SpeechRecognition) {
+        if (statusText) statusText.textContent = 'Wake word unsupported (Use Chrome/Edge)';
+        if (toggle) toggle.disabled = true;
+        return;
+    }
+
+    if (select) {
+        const savedWord = (state.wakeWord || 'jarvis').toLowerCase();
+        if (['jarvis', 'friday', 'tadashi', 'varta', 'alexa'].includes(savedWord)) {
+            select.value = savedWord;
+        } else {
+            select.value = 'custom';
+            if (customInput) {
+                customInput.style.display = 'inline-block';
+                customInput.value = savedWord;
+            }
+        }
+
+        select.addEventListener('change', () => {
+            if (select.value === 'custom') {
+                if (customInput) {
+                    customInput.style.display = 'inline-block';
+                    customInput.focus();
+                }
+            } else {
+                if (customInput) customInput.style.display = 'none';
+                state.wakeWord = select.value.toLowerCase();
+                localStorage.setItem('varta_wakeword', state.wakeWord);
+                updateWakeWordStatus();
+            }
+        });
+    }
+
+    if (customInput) {
+        customInput.addEventListener('input', () => {
+            const val = customInput.value.trim().toLowerCase();
+            if (val) {
+                state.wakeWord = val;
+                localStorage.setItem('varta_wakeword', state.wakeWord);
+                updateWakeWordStatus();
+            }
+        });
+    }
+
+    if (toggle) {
+        toggle.checked = state.wakeWordEnabled;
+        toggle.addEventListener('change', async () => {
+            state.wakeWordEnabled = toggle.checked;
+            localStorage.setItem('varta_wakeword_enabled', state.wakeWordEnabled);
+            if (state.wakeWordEnabled) {
+                // Explicitly request mic permission on toggle click
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    tempStream.getTracks().forEach(t => t.stop());
+                } catch (e) {
+                    console.warn('[WAKE-WORD] Mic permission prompt error:', e);
+                }
+                startWakeWordRecognition();
+            } else {
+                stopWakeWordRecognition();
+            }
+            updateWakeWordStatus();
+        });
+    }
+
+    function updateWakeWordStatus(customMsg = null) {
+        if (!statusText) return;
+        if (customMsg) {
+            statusText.innerHTML = customMsg;
+            return;
+        }
+        if (!state.wakeWordEnabled) {
+            statusText.innerHTML = '<span style="color: var(--text-muted);">Wake word paused</span>';
+        } else {
+            const wordDisplay = state.wakeWord.charAt(0).toUpperCase() + state.wakeWord.slice(1);
+            statusText.innerHTML = `🟢 Listening for <strong>"${wordDisplay}"</strong>...`;
+        }
+    }
+
+    function startWakeWordRecognition() {
+        if (!state.wakeWordEnabled || state.isRecording) return;
+        if (wakeRecognition) {
+            try { wakeRecognition.stop(); } catch (e) {}
+        }
+
+        try {
+            wakeRecognition = new SpeechRecognition();
+            wakeRecognition.continuous = true;
+            wakeRecognition.interimResults = true;
+            wakeRecognition.lang = 'en-US';
+
+            wakeRecognition.onstart = () => {
+                console.log('[WAKE-WORD] Background recognition active.');
+                updateWakeWordStatus();
+            };
+
+            wakeRecognition.onresult = (event) => {
+                if (state.isRecording) return;
+                const targetWord = (state.wakeWord || 'jarvis').toLowerCase().trim();
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const transcript = event.results[i][0].transcript.toLowerCase().trim();
+                    console.log('[WAKE-WORD] Microphone detected speech:', transcript);
+
+                    // Show live recognized text in UI so user knows it is listening
+                    updateWakeWordStatus(`🎙️ Heard: <em>"${transcript.slice(-25)}"</em>`);
+
+                    // Check for wake word or phonetic variations
+                    const isMatch = transcript.includes(targetWord) ||
+                        (targetWord === 'jarvis' && (transcript.includes('jarvis') || transcript.includes('service') || transcript.includes('travis') || transcript.includes('java') || transcript.includes('harvest'))) ||
+                        (targetWord === 'friday' && (transcript.includes('friday') || transcript.includes('hi friday'))) ||
+                        (targetWord === 'tadashi' && (transcript.includes('tadashi') || transcript.includes('tedashi') || transcript.includes('tadasi'))) ||
+                        (targetWord === 'varta' && (transcript.includes('varta') || transcript.includes('vartaalap') || transcript.includes('varta laap') || transcript.includes('vaarta')));
+
+                    if (isMatch) {
+                        console.log('[WAKE-WORD] ✨ MATCH DETECTED! Triggering voice query...');
+                        updateWakeWordStatus(`✨ <strong style="color: var(--brand-yellow);">Activated by "${targetWord}"!</strong> Speak question now...`);
+                        
+                        try { wakeRecognition.stop(); } catch(e) {}
+                        
+                        playWakeChime();
+                        
+                        setTimeout(() => {
+                            if (!state.isRecording) {
+                                startRecording();
+                            }
+                        }, 200);
+                        break;
+                    }
+                }
+            };
+
+            wakeRecognition.onerror = (e) => {
+                console.log('[WAKE-WORD] Info/Error:', e.error);
+                if (e.error === 'not-allowed') {
+                    updateWakeWordStatus('<span style="color: #ef4444;">⚠️ Click Mic once to allow browser permission</span>');
+                } else if (state.wakeWordEnabled && !state.isRecording) {
+                    clearTimeout(wakeRestartTimer);
+                    wakeRestartTimer = setTimeout(startWakeWordRecognition, 1200);
+                }
+            };
+
+            wakeRecognition.onend = () => {
+                if (state.wakeWordEnabled && !state.isRecording) {
+                    clearTimeout(wakeRestartTimer);
+                    wakeRestartTimer = setTimeout(startWakeWordRecognition, 600);
+                }
+            };
+
+            wakeRecognition.start();
+        } catch (e) {
+            console.warn('[WAKE-WORD] Recognition init exception:', e);
+        }
+    }
+
+    function stopWakeWordRecognition() {
+        if (wakeRecognition) {
+            try { wakeRecognition.stop(); } catch(e) {}
+            wakeRecognition = null;
+        }
+    }
+
+    function playWakeChime() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.25);
+        } catch (e) {}
+    }
+
+    // Expose helper to global window for re-arming after voice query
+    window.rearmWakeWordListener = () => {
+        if (state.wakeWordEnabled && !state.isRecording) {
+            setTimeout(startWakeWordRecognition, 600);
+        }
+    };
+
+    // User interaction auto-arm
+    document.addEventListener('click', async () => {
+        if (state.wakeWordEnabled && !wakeRecognition && !state.isRecording) {
+            try {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                tempStream.getTracks().forEach(t => t.stop());
+            } catch (e) {}
+            startWakeWordRecognition();
+        }
+    }, { once: true });
+
+    if (state.wakeWordEnabled) {
+        startWakeWordRecognition();
+    }
+}
+
+// Initial checks & Wake Word Listener
 checkHealth();
 fetchAnalytics();
+initWakeWordListener();
 
 // Poll health every 30s
 setInterval(checkHealth, 30000);

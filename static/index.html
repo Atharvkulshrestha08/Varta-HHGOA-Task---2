@@ -187,16 +187,42 @@
                         <span class="zonal-hint-badge">⚡ Sub-Second Fast STT</span>
                     </div>
                     <div class="zonal-tabs" id="zonal-tabs" role="tablist">
-                        <button class="zone-tab active" data-zone="zone_south" id="zone-south" type="button">🌴 South Zone</button>
+                        <button class="zone-tab active" data-zone="zone_all" id="zone-all" type="button">🌐 All India (22)</button>
+                        <button class="zone-tab" data-zone="zone_south" id="zone-south" type="button">🌴 South Zone</button>
                         <button class="zone-tab" data-zone="zone_north" id="zone-north" type="button">🏔️ North Zone</button>
                         <button class="zone-tab" data-zone="zone_west" id="zone-west" type="button">🌅 West Zone</button>
                         <button class="zone-tab" data-zone="zone_east" id="zone-east" type="button">🌿 East Zone</button>
-                        <button class="zone-tab" data-zone="zone_all" id="zone-all" type="button">🌐 All India (22)</button>
                     </div>
 
                     <!-- Dynamic Language Pills for Active Zone -->
                     <div class="language-selector" id="language-selector">
                         <!-- Populated dynamically via JS based on selected zone -->
+                    </div>
+                </div>
+
+                <!-- Hands-Free Voice Wake-Word Controller (Alexa / Jarvis / Friday Style) -->
+                <div class="wakeword-bar" id="wakeword-bar">
+                    <div class="wakeword-toggle-wrap">
+                        <label class="wakeword-switch" title="Toggle hands-free wake word listening">
+                            <input type="checkbox" id="wakeword-toggle" checked>
+                            <span class="wakeword-slider"></span>
+                        </label>
+                        <span class="wakeword-title">🎙️ Hands-Free Wake Word:</span>
+                    </div>
+                    <div class="wakeword-controls">
+                        <select id="wakeword-select" class="wakeword-select" aria-label="Select Wake Word">
+                            <option value="jarvis">🤖 "Jarvis"</option>
+                            <option value="friday">🚀 "Friday"</option>
+                            <option value="tadashi">🩺 "Tadashi"</option>
+                            <option value="varta">🇮🇳 "Varta"</option>
+                            <option value="alexa">🔊 "Alexa"</option>
+                            <option value="custom">✏️ Custom Word...</option>
+                        </select>
+                        <input type="text" id="wakeword-custom-input" class="wakeword-custom-input" placeholder="Type custom word..." style="display: none;">
+                    </div>
+                    <div class="wakeword-status-badge" id="wakeword-status">
+                        <span class="wakeword-pulse-dot"></span>
+                        <span id="wakeword-status-text">Listening for "Jarvis"...</span>
                     </div>
                 </div>
 

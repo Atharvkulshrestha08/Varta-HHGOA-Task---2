@@ -504,7 +504,7 @@ class PipelineHarness:
         query_text = request.text if hasattr(request, "text") and request.text is not None else str(getattr(request, "text", request) or "")
         language_hint = getattr(request, "language_hint", None)
         zone = getattr(request, "zone", "zone_all") or "zone_all"
-        top_k = getattr(request, "top_k", 5) or 5
+        top_k = getattr(request, "top_k", 3) or 3
         session_id = getattr(request, "session_id", None)
         conversation_history = getattr(request, "conversation_history", None) or []
 
@@ -644,11 +644,11 @@ class PipelineHarness:
                 is_fallback=False,
             )
 
-        # ── Step 5: Retrieval ──
+        # ── Step 5: Retrieval (top_k=3 for minimal serialization) ──
         try:
             with self.analytics.time_stage(record, "retrieval"):
                 results = self.vector_store.search(
-                    query_vector, top_k=top_k, score_threshold=0.0
+                    query_vector, top_k=3, score_threshold=0.0
                 )
         except Exception as e:
             self.analytics.finish_record(record)
@@ -667,47 +667,8 @@ class PipelineHarness:
                 total_latency_ms=sum(record.stages.values()),
             )
 
-        # ── Step 5b: Live Wikipedia Intelligence Augmentation (Strict 350ms Sub-Second Cap) ──
-        top_score = max((r.get("score", 0) for r in results), default=0.0)
-        if top_score < 0.45 or len(results) == 0:
-            try:
-                with self.analytics.time_stage(record, "wikipedia_retrieval"):
-                    wiki_data = await asyncio.wait_for(
-                        self.wiki_retriever.fetch_topic_summary(
-                            query=search_text, language=language
-                        ),
-                        timeout=0.35,  # Strict sub-second cap: never block pipeline for more than 350ms
-                    )
-                if wiki_data and wiki_data.get("extract"):
-                    logger.info(f"Wikipedia intelligence matched: '{wiki_data.get('title')}'")
-                    wiki_passage = {
-                        "text": f"Wikipedia ({wiki_data['title']}): {wiki_data['extract']}",
-                        "score": 0.88,
-                        "rank": 0,
-                        "language": wiki_data.get("language", language),
-                        "strategy": "wikipedia_retrieval",
-                        "source": f"Wikipedia: {wiki_data['title']}",
-                        "url": wiki_data.get("url", ""),
-                        "is_selected": True,
-                    }
-                    for idx, r in enumerate(results):
-                        r["rank"] = idx + 1
-                    results = [wiki_passage] + results
-
-                    # Dynamically cache knowledge into live FAISS index
-                    try:
-                        self.vector_store.add_passages([{
-                            "text": wiki_data["extract"],
-                            "language": wiki_data.get("language", language),
-                            "strategy": "wikipedia_cached",
-                            "source": f"Wikipedia: {wiki_data['title']}",
-                            "url": wiki_data.get("url", ""),
-                            "is_selected": True,
-                        }])
-                    except Exception as ce:
-                        logger.debug(f"Failed to cache Wikipedia passage into FAISS: {ce}")
-            except Exception as we:
-                logger.debug(f"Wikipedia retrieval skipped: {we}")
+        # ── Step 5b: Wikipedia bypassed for sub-200ms latency ──
+        # All knowledge is served from FAISS in-memory index (0.1ms)
 
         # ── Step 6: Retrieval Guardrails ──
         with self.analytics.time_stage(record, "guardrails_retrieval"):
@@ -745,15 +706,11 @@ class PipelineHarness:
 
         try:
             with self.analytics.time_stage(record, "generation"):
-                gen_result = await retry_async(
-                    lambda: self.generator.generate(
-                        question=query_text,
-                        passages=results,
-                        language=language,
-                        conversation_history=conversation_history,
-                    ),
-                    max_attempts=1,
-                    base_delay=0.0,
+                gen_result = await self.generator.generate(
+                    question=query_text,
+                    passages=results,
+                    language=language,
+                    conversation_history=conversation_history,
                 )
 
             if not gen_result["success"]:

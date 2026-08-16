@@ -141,6 +141,9 @@ async def lifespan(app: FastAPI):
     )
     # Pre-warm model in memory during server startup
     _ = vector_store.model
+    # Pre-warm Groq TLS connection (eliminates ~200ms cold-start on first query)
+    if hasattr(generator, 'prewarm'):
+        await generator.prewarm()
 
     logger.info("=" * 60)
     logger.info("[OK] Pipeline ready (pre-warmed for sub-200ms latency)!")

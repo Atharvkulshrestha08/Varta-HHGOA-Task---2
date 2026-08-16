@@ -467,7 +467,174 @@ body {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
+    min-height: 42px;
+}
+
+.lang-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px var(--border-color);
+    transition: all var(--transition-fast);
+}
+
+.lang-btn:hover {
+    color: var(--text-primary);
+    background: rgba(245, 213, 32, 0.15);
+    border-color: var(--brand-yellow);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px var(--border-color);
+}
+
+.lang-btn.active {
+    background: var(--brand-yellow);
+    color: #121814;
+    border-color: var(--border-color);
+    font-weight: 700;
+    box-shadow: 2px 2px 0px var(--border-color);
+    transform: translate(-1px, -1px);
+}
+
+.lang-btn.anchor-lang {
+    border-style: dashed;
+    border-color: rgba(245, 213, 32, 0.6);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hands-Free Wake Word Bar (Jarvis / Friday / Alexa Style)
+   ═══════════════════════════════════════════════════════════════ */
+.wakeword-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: rgba(18, 30, 20, 0.7);
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    margin-bottom: 20px;
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
+}
+
+.wakeword-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wakeword-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--brand-yellow);
+    font-family: var(--font-ui);
+    letter-spacing: 0.02em;
+}
+
+.wakeword-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 20px;
+}
+
+.wakeword-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.wakeword-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #334;
+    transition: 0.3s;
+    border-radius: 20px;
+    border: 1.5px solid var(--border-color);
+}
+
+.wakeword-slider:before {
+    position: absolute;
+    content: "";
+    height: 12px;
+    width: 12px;
+    left: 3px;
+    bottom: 2.5px;
+    background-color: #fff;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.wakeword-switch input:checked + .wakeword-slider {
+    background-color: var(--brand-green);
+}
+
+.wakeword-switch input:checked + .wakeword-slider:before {
+    transform: translateX(18px);
+    background-color: var(--brand-yellow);
+}
+
+.wakeword-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wakeword-select, .wakeword-custom-input {
+    background: #0f1c12;
+    border: 1.5px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.wakeword-select:focus, .wakeword-custom-input:focus {
+    border-color: var(--brand-yellow);
+}
+
+.wakeword-custom-input {
+    width: 120px;
+}
+
+.wakeword-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.wakeword-pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand-yellow);
+    animation: wakewordGlow 1.5s infinite;
+}
+
+@keyframes wakewordGlow {
+    0% { transform: scale(0.8); opacity: 0.4; }
+    50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 8px var(--brand-yellow); }
+    100% { transform: scale(0.8); opacity: 0.4; }
+}
     position: relative;
     z-index: 10;
 }
