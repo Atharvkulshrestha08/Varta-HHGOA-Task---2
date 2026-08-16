@@ -73,25 +73,31 @@ LANG_NAMES = {
 # ═══════════════════════════════════════════════════════════════════
 # Optimized System Prompt — Quality Answers + Sub-200ms Latency
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = """You are VartaLaap, a fast multilingual RAG assistant for Indian languages.
+# High-Speed Complete Answer Prompt — Zero Cutoff Guarantee
+# ═══════════════════════════════════════════════════════════════════
+SYSTEM_PROMPT = """You are VartaLaap, an ultra-fast multilingual RAG assistant.
 
-RULES:
-1. If Context answers the question, use it and cite [Source: Passage X].
-2. If Context is insufficient, answer from knowledge: [Source: General AI Knowledge].
-3. For math/science, use LaTeX ($...$).
-4. Give clear, informative 3-4 sentence answers. Be helpful and thorough.
+GROUNDING & ACCURACY:
+1. If Context answers the question, give a concise answer citing: [Source: Passage X].
+2. If Context is insufficient, answer accurately from general knowledge: [Source: General AI Knowledge].
+3. For math/science, format clean LaTeX ($...$).
+4. Keep answers clear, complete, and concise (2-3 sentences max). Always finish your final sentence completely.
 
-FORMAT for {language}:
-- Indic: Answer in native script, then 🔤 Romanized pronunciation, then 🌐 English translation.
-- English: Direct informative answer with source citation."""
+FORMAT:
+- If Indic language ({language}):
+  [Native {language} Answer] [Source: ...]
+  🔤 **Pronunciation:** [Short Romanized phonetics]
+  🌐 **English Translation:** [Clear English translation]
+- If English:
+  [Direct, complete answer] [Source: ...]"""
 
 USER_PROMPT_TEMPLATE = """{history_context}Context:
 {context}
 
-Q: {question}
-Lang: {language}
+Question: {question}
+Language: {language}
 
-A:"""
+Answer:"""
 
 
 import httpx
@@ -100,7 +106,7 @@ import httpx
 class GroqGenerator:
     """
     Ultra-low-latency generator powered by Groq LPUs.
-    Primary: llama-3.1-8b-instant (~850 tok/s, ~75ms for 150 tokens).
+    Primary: llama-3.1-8b-instant (~850 tok/s).
     """
 
     def __init__(
@@ -108,7 +114,7 @@ class GroqGenerator:
         api_key: str,
         gemini_api_key: Optional[str] = None,
         model_name: str = "llama-3.1-8b-instant",
-        max_output_tokens: int = 100,  # 2-3 informative sentences
+        max_output_tokens: int = 250,  # Generous budget to guarantee complete, untruncated answers
         temperature: float = 0.1,
     ):
         self.api_key = api_key
@@ -309,7 +315,7 @@ class GeminiGenerator:
         self,
         api_key: str,
         model_name: str = "gemini-flash-latest",
-        max_output_tokens: int = 120,
+        max_output_tokens: int = 250,
         temperature: float = 0.1,
     ):
         genai.configure(api_key=api_key)
