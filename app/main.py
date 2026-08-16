@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 from app.analytics import LatencyAnalytics
 from app.guardrails import GuardrailsEngine
 from app.harness import PipelineHarness, QueryRequest, LearnRequest
-from app.stt import SarvamSTTClient, MockSTTClient
+from app.stt import SarvamSTTClient, MockSTTClient, REGIONAL_ZONES
 from app.generator import GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
 from app.wikipedia_retriever import WikipediaRetriever
@@ -224,12 +224,13 @@ async def serve_frontend():
 async def voice_query(
     audio: UploadFile = File(...),
     language_hint: str = Form(None),
+    zone: str = Form("zone_all"),
     top_k: int = Form(5),
     session_id: str = Form(None),
     conversation_history: str = Form(None),
 ):
     """
-    Full voice pipeline: audio → STT → retrieval → answer with multi-turn context.
+    Full voice pipeline: audio → STT → retrieval → answer with zonal routing and multi-turn context.
     """
     if not harness:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
@@ -256,12 +257,19 @@ async def voice_query(
         audio_data=audio_data,
         content_type=content_type,
         language_hint=language_hint,
+        zone=zone,
         top_k=top_k,
         session_id=session_id,
         conversation_history=parsed_history,
     )
 
     return response.model_dump()
+
+
+@app.get("/api/zones")
+async def get_regional_zones():
+    """Get the list of regional linguistic clusters for fast STT routing and adaptive switching."""
+    return {"zones": REGIONAL_ZONES}
 
 
 @app.post("/api/query/text")

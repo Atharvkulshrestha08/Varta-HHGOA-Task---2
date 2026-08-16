@@ -87,22 +87,54 @@ OUR_TO_SARVAM_LANG = {
     "en-IN": "en-IN",
 }
 
+# ═══════════════════════════════════════════════════════════════════
+# Regional Linguistic Clusters (Zonal Grouping for Fast STT & Code-Switching)
+# ═══════════════════════════════════════════════════════════════════
+REGIONAL_ZONES = {
+    "zone_south": {
+        "name": "South Zone (Dravidian & Coastal)",
+        "icon": "🌴",
+        "languages": ["tam_Taml", "tel_Telu", "kan_Knda", "mal_Mlym", "kok_Deva", "hin_Deva", "eng_Latn"],
+        "sarvam_codes": ["ta-IN", "te-IN", "kn-IN", "ml-IN", "kok-IN", "hi-IN", "en-IN"],
+        "default_lang": "ta-IN",
+    },
+    "zone_north": {
+        "name": "North & Central Zone",
+        "icon": "🏔️",
+        "languages": ["hin_Deva", "pan_Guru", "urd_Arab", "san_Deva", "nep_Deva", "mai_Deva", "kas_Arab", "doi_Deva", "eng_Latn"],
+        "sarvam_codes": ["hi-IN", "pa-IN", "ur-IN", "sa-IN", "ne-IN", "mai-IN", "ks-IN", "doi-IN", "en-IN"],
+        "default_lang": "hi-IN",
+    },
+    "zone_west": {
+        "name": "West Zone",
+        "icon": "🌅",
+        "languages": ["mar_Deva", "guj_Gujr", "kok_Deva", "snd_Arab", "hin_Deva", "eng_Latn"],
+        "sarvam_codes": ["mr-IN", "gu-IN", "kok-IN", "sd-IN", "hi-IN", "en-IN"],
+        "default_lang": "mr-IN",
+    },
+    "zone_east": {
+        "name": "East & North-East Zone",
+        "icon": "🌿",
+        "languages": ["ben_Beng", "asm_Beng", "ori_Orya", "mni_Mtei", "brx_Deva", "sat_Olck", "hin_Deva", "eng_Latn"],
+        "sarvam_codes": ["bn-IN", "as-IN", "or-IN", "mni-IN", "brx-IN", "sat-IN", "hi-IN", "en-IN"],
+        "default_lang": "bn-IN",
+    },
+    "zone_all": {
+        "name": "Pan-India Universal (All 22 Languages)",
+        "icon": "🌐",
+        "languages": list(SARVAM_LANG_MAP.values()),
+        "sarvam_codes": list(SARVAM_LANG_MAP.keys()),
+        "default_lang": None,
+    }
+}
+
 
 class SarvamSTTClient:
     """
-    Async client for Sarvam AI Speech-to-Text API.
-
-    Features:
-    - Transcribes audio in Hindi, Bengali, Tamil, Telugu, English
-    - Auto-detects language from speech
-    - Returns structured result with transcript, language, confidence
-
-    Usage:
-        client = SarvamSTTClient(api_key="your_key")
-        result = await client.transcribe(audio_bytes, "audio/wav")
+    Async client for Sarvam AI Speech-to-Text API with Zonal Routing.
     """
 
-    def __init__(self, api_key: str, timeout: float = 10.0):
+    def __init__(self, api_key: str, timeout: float = 8.0):
         self.api_key = api_key
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
@@ -124,25 +156,11 @@ class SarvamSTTClient:
         audio_data: bytes,
         content_type: str = "audio/wav",
         language_hint: Optional[str] = None,
+        zone: Optional[str] = None,
     ) -> dict:
         """
-        Transcribe audio data to text.
-
-        Args:
-            audio_data: Raw audio bytes
-            content_type: MIME type (audio/wav, audio/webm, audio/mp3)
-            language_hint: Optional language code hint (e.g., "hi-IN" or "hin_Deva")
-
-        Returns:
-            {
-                "transcript": "transcribed text",
-                "language_code": "hin_Deva",
-                "raw_language": "hi-IN",
-                "success": True,
-                "error": None
-            }
+        Transcribe audio data to text with fast-path zonal routing.
         """
-        # Clean and normalize MIME type (strip params like ';codecs=opus')
         clean_content_type = content_type.split(";")[0].strip().lower() if content_type else "audio/wav"
         if clean_content_type not in [
             "audio/webm", "video/webm", "audio/wav", "audio/x-wav", 
@@ -161,20 +179,24 @@ class SarvamSTTClient:
         }
         filename = ext_map.get(clean_content_type, "audio.webm" if "webm" in clean_content_type else "audio.wav")
 
+        # Determine effective language code from hint or active zone
+        effective_lang = None
+        if language_hint and language_hint not in ("auto", "unknown"):
+            effective_lang = OUR_TO_SARVAM_LANG.get(language_hint, language_hint)
+        elif zone and zone in REGIONAL_ZONES and REGIONAL_ZONES[zone].get("default_lang"):
+            effective_lang = REGIONAL_ZONES[zone]["default_lang"]
+
         try:
             headers = {
                 "api-subscription-key": self.api_key,
             }
 
-            # Build form data
             data = {
                 "model": "saaras:v3",
                 "mode": "transcribe",
             }
-            if language_hint:
-                sarvam_lang = OUR_TO_SARVAM_LANG.get(language_hint, language_hint)
-                if sarvam_lang and sarvam_lang != "unknown":
-                    data["language_code"] = sarvam_lang
+            if effective_lang and effective_lang != "unknown":
+                data["language_code"] = effective_lang
 
             files = {
                 "file": (filename, audio_data, clean_content_type),

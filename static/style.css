@@ -397,27 +397,95 @@ body {
     margin-top: 4px;
 }
 
-/* ── Language Selector ── */
+/* ── Regional Linguistic Zonal Selector ── */
+.zonal-selector-wrapper {
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 10;
+}
+
+.zonal-tabs-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--brand-yellow);
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.zonal-hint-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.68rem;
+}
+
+.zonal-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 6px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--border-color);
+}
+
+.zone-tab {
+    padding: 6px 14px;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.zone-tab:hover {
+    color: var(--text-primary);
+    background: rgba(245, 213, 32, 0.1);
+}
+
+.zone-tab.active {
+    background: var(--brand-green);
+    color: var(--brand-yellow);
+    border-color: var(--brand-yellow);
+    font-weight: 700;
+    box-shadow: 2px 2px 0px var(--border-color);
+    transform: translate(-1px, -1px);
+}
+
 .language-selector {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     position: relative;
     z-index: 10;
 }
 
 .lang-btn {
-    padding: 8px 16px;
-    border: 2px solid var(--border-color);
+    padding: 6px 12px;
+    border: 1.5px solid var(--border-color);
     border-radius: var(--radius-full);
     background: var(--bg-card);
     color: var(--text-secondary);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-family: var(--font-ui);
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .lang-btn:hover {
@@ -431,6 +499,11 @@ body {
     border-color: var(--border-color);
     box-shadow: 2px 2px 0px var(--border-color);
     transform: translate(-2px, -2px);
+}
+
+.lang-btn.anchor-lang {
+    border-color: rgba(245, 213, 32, 0.5);
+    background: rgba(245, 213, 32, 0.08);
 }
 
 /* ── Voice Input ── */

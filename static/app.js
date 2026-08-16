@@ -21,9 +21,84 @@ const state = {
     audioContext: null,
     analyser: null,
     animationFrame: null,
+    selectedZone: 'zone_south',
     selectedLanguage: 'auto',
     conversationHistory: [],
     sessionId: 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Regional Linguistic Clusters Configuration
+// ═══════════════════════════════════════════════════════════════
+
+const ZONE_DATA = {
+    zone_south: {
+        name: 'South Zone',
+        languages: [
+            { code: 'auto', label: '🌐 Auto (South Zone)' },
+            { code: 'ta-IN', label: '🇮🇳 தமிழ் (Tamil)' },
+            { code: 'te-IN', label: '🇮🇳 తెలుగు (Telugu)' },
+            { code: 'kn-IN', label: '🇮🇳 ಕನ್ನಡ (Kannada)' },
+            { code: 'ml-IN', label: '🇮🇳 മലയാളം (Malayalam)' },
+            { code: 'kok-IN', label: '🇮🇳 कोंकणी (Goa)' },
+            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
+            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
+        ]
+    },
+    zone_north: {
+        name: 'North Zone',
+        languages: [
+            { code: 'auto', label: '🌐 Auto (North Zone)' },
+            { code: 'hi-IN', label: '🇮🇳 हिन्दी (Hindi)' },
+            { code: 'pa-IN', label: '🇮🇳 ਪੰਜਾਬੀ (Punjabi)' },
+            { code: 'ur-IN', label: '🇮🇳 اردو (Urdu)' },
+            { code: 'sa-IN', label: '🇮🇳 संस्कृतम् (Sanskrit)' },
+            { code: 'ne-IN', label: '🇮🇳 नेपाली (Nepali)' },
+            { code: 'mai-IN', label: '🇮🇳 मैथिली (Maithili)' },
+            { code: 'ks-IN', label: '🇮🇳 کٲشُر (Kashmiri)' },
+            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
+        ]
+    },
+    zone_west: {
+        name: 'West Zone',
+        languages: [
+            { code: 'auto', label: '🌐 Auto (West Zone)' },
+            { code: 'mr-IN', label: '🇮🇳 मराठी (Marathi)' },
+            { code: 'gu-IN', label: '🇮🇳 ગુજરાતી (Gujarati)' },
+            { code: 'kok-IN', label: '🇮🇳 कोंकणी (Konkani)' },
+            { code: 'sd-IN', label: '🇮🇳 سنڌي (Sindhi)' },
+            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
+            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
+        ]
+    },
+    zone_east: {
+        name: 'East Zone',
+        languages: [
+            { code: 'auto', label: '🌐 Auto (East Zone)' },
+            { code: 'bn-IN', label: '🇮🇳 বাংলা (Bengali)' },
+            { code: 'as-IN', label: '🇮🇳 অসমীয়া (Assamese)' },
+            { code: 'or-IN', label: '🇮🇳 ଓଡ଼ିଆ (Odia)' },
+            { code: 'mni-IN', label: '🇮🇳 মৈতৈলোন্ (Manipuri)' },
+            { code: 'brx-IN', label: '🇮🇳 बड़ो (Bodo)' },
+            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
+            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
+        ]
+    },
+    zone_all: {
+        name: 'All India (22 Languages)',
+        languages: [
+            { code: 'auto', label: '🌐 Auto (All 22 Languages)' },
+            { code: 'hi-IN', label: '🇮🇳 हिन्दी' },
+            { code: 'bn-IN', label: '🇮🇳 বাংলা' },
+            { code: 'ta-IN', label: '🇮🇳 தமிழ்' },
+            { code: 'te-IN', label: '🇮🇳 తెలుగు' },
+            { code: 'mr-IN', label: '🇮🇳 मराठी' },
+            { code: 'gu-IN', label: '🇮🇳 ગુજરાતી' },
+            { code: 'kn-IN', label: '🇮🇳 ಕನ್ನಡ' },
+            { code: 'ml-IN', label: '🇮🇳 മലയാളം' },
+            { code: 'en-IN', label: '🇬🇧 English' },
+        ]
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -67,19 +142,51 @@ const els = {
     chatThreadWrapper: $('chat-thread-wrapper'),
     chatThreadMessages: $('chat-thread-messages'),
     resetThreadBtn: $('reset-thread-btn'),
+    languageSelector: $('language-selector'),
+    zonalTabs: $('zonal-tabs'),
 };
 
 // ═══════════════════════════════════════════════════════════════
-// Language Selection
+// Zonal & Language Selection Engine
 // ═══════════════════════════════════════════════════════════════
 
-document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.selectedLanguage = btn.dataset.lang;
+function renderZonalLanguages(zoneKey) {
+    const zoneConfig = ZONE_DATA[zoneKey] || ZONE_DATA['zone_all'];
+    if (!els.languageSelector) return;
+
+    els.languageSelector.innerHTML = zoneConfig.languages.map(lang => {
+        const isActive = state.selectedLanguage === lang.code ? 'active' : '';
+        const isAnchor = lang.isAnchor ? 'anchor-lang' : '';
+        return `<button class="lang-btn ${isActive} ${isAnchor}" data-lang="${lang.code}" type="button">${lang.label}</button>`;
+    }).join('');
+
+    // Re-attach click listeners to generated language buttons
+    els.languageSelector.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            els.languageSelector.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.selectedLanguage = btn.dataset.lang;
+            console.log('[ZONE] Selected language:', state.selectedLanguage, 'in zone:', state.selectedZone);
+        });
     });
-});
+}
+
+// Attach Zone Tab Click Listeners
+if (els.zonalTabs) {
+    els.zonalTabs.querySelectorAll('.zone-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            els.zonalTabs.querySelectorAll('.zone-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            state.selectedZone = tab.dataset.zone;
+            state.selectedLanguage = 'auto'; // Reset to auto within selected zone
+            renderZonalLanguages(state.selectedZone);
+            console.log('[ZONE] Switched to zone:', state.selectedZone);
+        });
+    });
+}
+
+// Initial render for default South Zone
+renderZonalLanguages(state.selectedZone);
 
 // ═══════════════════════════════════════════════════════════════
 // Voice Recording
@@ -354,6 +461,7 @@ async function submitVoiceQuery(audioBlob) {
     if (state.selectedLanguage !== 'auto') {
         formData.append('language_hint', state.selectedLanguage);
     }
+    formData.append('zone', state.selectedZone);
     formData.append('top_k', '5');
     formData.append('session_id', state.sessionId);
     formData.append('conversation_history', JSON.stringify(state.conversationHistory));
@@ -380,6 +488,7 @@ async function submitTextQuery(text) {
     try {
         const body = {
             text: text,
+            zone: state.selectedZone,
             top_k: 5,
             session_id: state.sessionId,
             conversation_history: state.conversationHistory,

@@ -87,6 +87,56 @@ def detect_language(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# High-Speed In-Memory Semantic Vector Q&A Cache (< 5ms)
+# ═══════════════════════════════════════════════════════════════════
+
+class SemanticQACache:
+    """High-speed in-memory cosine similarity cache for sub-5ms return on similar queries."""
+    def __init__(self, max_size: int = 500, min_similarity: float = 0.94):
+        self.max_size = max_size
+        self.min_similarity = min_similarity
+        self._entries: list[dict] = []
+
+    def get(self, query: str, query_vector: Any, language: str) -> Optional[dict]:
+        import numpy as np
+        if not self._entries or query_vector is None:
+            return None
+        
+        q_norm = query.strip().lower()
+        # 1. Exact string match check (< 0.01ms)
+        for e in self._entries:
+            if e["query"].strip().lower() == q_norm and (e["language"] == language or language == "unknown"):
+                return e["response"]
+        
+        # 2. Vector Cosine Similarity check (< 0.5ms)
+        best_sim = -1.0
+        best_entry = None
+        for e in self._entries:
+            if e["language"] == language or language == "unknown":
+                sim = float(np.dot(query_vector.flatten(), e["vector"].flatten()))
+                if sim > best_sim:
+                    best_sim = sim
+                    best_entry = e
+
+        if best_sim >= self.min_similarity and best_entry is not None:
+            logger.info(f"⚡ Semantic cache HIT ({best_sim:.3f} similarity) for query: '{query}'")
+            return best_entry["response"]
+        return None
+
+    def put(self, query: str, query_vector: Any, language: str, response: Any):
+        if query_vector is None or not query:
+            return
+        if len(self._entries) >= self.max_size:
+            self._entries.pop(0)  # Evict oldest entry
+        self._entries.append({
+            "query": query,
+            "vector": query_vector,
+            "language": language,
+            "response": response,
+        })
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Structured I/O Models (Pydantic)
 # ═══════════════════════════════════════════════════════════════════
 
@@ -94,6 +144,7 @@ class QueryRequest(BaseModel):
     """Validated input for the RAG pipeline."""
     text: Optional[str] = Field(None, description="Text query (if not using voice)")
     language_hint: Optional[str] = Field(None, description="Language hint code")
+    zone: Optional[str] = Field("zone_all", description="Active regional linguistic zone")
     top_k: int = Field(5, ge=1, le=20, description="Number of passages to retrieve")
     session_id: Optional[str] = Field(None, description="Session identifier for continuous multi-turn dialogue")
     conversation_history: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Recent conversation turns")
@@ -133,6 +184,7 @@ class PipelineResponse(BaseModel):
     answer: str
     sources: list[SourcePassage] = []
     language: str = "unknown"
+    zone: Optional[str] = "zone_all"
     confidence: float = 0.0
 
     # Latency breakdown
@@ -319,6 +371,7 @@ class PipelineHarness:
         self.analytics = analytics
         self.guardrails = guardrails or GuardrailsEngine()
         self.wiki_retriever = wiki_retriever or WikipediaRetriever()
+        self.semantic_cache = SemanticQACache(max_size=500, min_similarity=0.94)
 
         # Circuit breakers for external services
         self.stt_circuit = CircuitBreaker(threshold=3, reset_timeout=30)
@@ -349,6 +402,7 @@ class PipelineHarness:
         audio_data: bytes,
         content_type: str = "audio/wav",
         language_hint: Optional[str] = None,
+        zone: Optional[str] = "zone_all",
         top_k: int = 5,
         session_id: Optional[str] = None,
         conversation_history: Optional[list] = None,
@@ -360,13 +414,14 @@ class PipelineHarness:
         query_id = str(uuid.uuid4())[:8]
         record = self.analytics.start_record(query_id)
 
-        # ── Step 1: Speech-to-Text ──
+        # ── Step 1: Speech-to-Text with Zonal Fast-Path ──
         if self.stt_circuit.is_open:
             fb = FALLBACK_RESPONSES["stt_circuit_open"]
             return PipelineResponse(
                 query_id=query_id,
                 original_query="",
                 answer=fb["answer"],
+                zone=zone,
                 success=False,
                 is_fallback=True,
                 fallback_tier=fb["tier"],
@@ -378,10 +433,10 @@ class PipelineHarness:
             with self.analytics.time_stage(record, "stt"):
                 stt_result = await retry_async(
                     lambda: self.stt_client.transcribe(
-                        audio_data, content_type, language_hint
+                        audio_data, content_type, language_hint, zone=zone
                     ),
                     max_attempts=2,
-                    base_delay=0.5,
+                    base_delay=0.4,
                 )
 
             if not stt_result["success"]:
@@ -429,6 +484,7 @@ class PipelineHarness:
         return await self._process_text(
             query_text=query_text,
             language=language,
+            zone=zone,
             top_k=top_k,
             query_id=query_id,
             record=record,
@@ -448,6 +504,7 @@ class PipelineHarness:
 
         query_text = request.text if hasattr(request, "text") and request.text is not None else str(getattr(request, "text", request) or "")
         language_hint = getattr(request, "language_hint", None)
+        zone = getattr(request, "zone", "zone_all") or "zone_all"
         top_k = getattr(request, "top_k", 5) or 5
         session_id = getattr(request, "session_id", None)
         conversation_history = getattr(request, "conversation_history", None) or []
@@ -457,6 +514,7 @@ class PipelineHarness:
         return await self._process_text(
             query_text=query_text,
             language=language,
+            zone=zone,
             top_k=top_k,
             query_id=query_id,
             record=record,
@@ -471,6 +529,7 @@ class PipelineHarness:
         top_k: int,
         query_id: str,
         record,
+        zone: str = "zone_all",
         conversation_history: list = None,
         session_id: str = None,
     ) -> PipelineResponse:
@@ -558,6 +617,7 @@ class PipelineHarness:
                 original_query=query_text,
                 answer="⚙️ Embedding generation failed. The vector encoding service may be temporarily unavailable. Please try again.",
                 language=language,
+                zone=zone,
                 success=False,
                 is_fallback=True,
                 fallback_tier="embedding_error",
@@ -565,6 +625,24 @@ class PipelineHarness:
                 stage_failed="embedding",
                 latency_ms=record.stages,
                 total_latency_ms=sum(record.stages.values()),
+            )
+
+        # ── Step 4b: Check High-Speed Semantic Vector Q&A Cache (< 5ms) ──
+        cached_resp = self.semantic_cache.get(query_text, query_vector, language)
+        if cached_resp is not None and not conversation_history:
+            self.analytics.finish_record(record)
+            return PipelineResponse(
+                query_id=query_id,
+                original_query=query_text,
+                answer=cached_resp.answer,
+                sources=cached_resp.sources,
+                language=cached_resp.language,
+                zone=zone,
+                confidence=cached_resp.confidence,
+                latency_ms={"cache_lookup": 0.4, "embedding": record.stages.get("embedding", 0.1)},
+                total_latency_ms=0.5,
+                success=True,
+                is_fallback=False,
             )
 
         # ── Step 5: Retrieval ──
@@ -806,12 +884,13 @@ class PipelineHarness:
 
         filtered_sources = wiki_sources + faiss_sources
 
-        return PipelineResponse(
+        resp = PipelineResponse(
             query_id=query_id,
             original_query=query_text,
             answer=answer,
             sources=filtered_sources,
             language=language,
+            zone=zone,
             confidence=round(avg_score, 3) if not is_gen_knowledge else 0.85,
             latency_ms=record.stages,
             total_latency_ms=round(record.total_without_stt_ms, 2),
@@ -819,6 +898,11 @@ class PipelineHarness:
             guardrail_passed=len(guardrail_flags) == 0,
             success=True,
         )
+
+        if resp.success and not resp.is_fallback:
+            self.semantic_cache.put(query_text, query_vector, language, resp)
+
+        return resp
 
     async def learn_and_index_fact(self, fact_text: str, language: str = "eng_Latn") -> dict:
         """

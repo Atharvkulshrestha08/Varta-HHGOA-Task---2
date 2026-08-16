@@ -180,13 +180,24 @@
                     </div>
                 </div>
 
-                <!-- Language Selector -->
-                <div class="language-selector" id="language-selector">
-                    <button class="lang-btn active" data-lang="auto" id="lang-auto">🌐 Auto</button>
-                    <button class="lang-btn" data-lang="hi-IN" id="lang-hi">🇮🇳 हिन्दी</button>
-                    <button class="lang-btn" data-lang="bn-IN" id="lang-bn">🇮🇳 বাংলা</button>
-                    <button class="lang-btn" data-lang="ta-IN" id="lang-ta">🇮🇳 தமிழ்</button>
-                    <button class="lang-btn" data-lang="te-IN" id="lang-te">🇮🇳 తెలుగు</button>
+                <!-- Regional Linguistic Cluster Selector (Zonal Grouping for Sub-Second STT) -->
+                <div class="zonal-selector-wrapper">
+                    <div class="zonal-tabs-label">
+                        <span>📍 SELECT REGIONAL LINGUISTIC ZONE:</span>
+                        <span class="zonal-hint-badge">⚡ Sub-Second Fast STT</span>
+                    </div>
+                    <div class="zonal-tabs" id="zonal-tabs" role="tablist">
+                        <button class="zone-tab active" data-zone="zone_south" id="zone-south" type="button">🌴 South Zone</button>
+                        <button class="zone-tab" data-zone="zone_north" id="zone-north" type="button">🏔️ North Zone</button>
+                        <button class="zone-tab" data-zone="zone_west" id="zone-west" type="button">🌅 West Zone</button>
+                        <button class="zone-tab" data-zone="zone_east" id="zone-east" type="button">🌿 East Zone</button>
+                        <button class="zone-tab" data-zone="zone_all" id="zone-all" type="button">🌐 All India (22)</button>
+                    </div>
+
+                    <!-- Dynamic Language Pills for Active Zone -->
+                    <div class="language-selector" id="language-selector">
+                        <!-- Populated dynamically via JS based on selected zone -->
+                    </div>
                 </div>
 
                 <!-- Voice Input -->
