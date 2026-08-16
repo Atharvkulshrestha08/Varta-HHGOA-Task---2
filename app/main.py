@@ -38,6 +38,7 @@ from app.guardrails import GuardrailsEngine
 from app.harness import PipelineHarness, QueryRequest, LearnRequest
 from app.stt import SarvamSTTClient, MockSTTClient, REGIONAL_ZONES
 from app.generator import GroqGenerator, GeminiGenerator, MockGenerator
+from app.supabase_client import supabase_db
 from app.vector_store import VectorStore
 from app.wikipedia_retriever import WikipediaRetriever
 
@@ -445,6 +446,15 @@ async def submit_feedback(request: FeedbackRequest):
     }
     feedback_store.append(feedback_entry)
     logger.info(f"HITL feedback: {request.rating} for query {request.query_id}")
+
+    # Async background write to Supabase
+    asyncio.create_task(
+        supabase_db.log_user_feedback(
+            query_id=request.query_id,
+            is_correct=request.rating == "up",
+            feedback_text=f"Q: {request.query_text[:200]} | A: {request.answer_text[:200]}",
+        )
+    )
 
     # Calculate summary stats
     total = len(feedback_store)

@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 import re
 from app.analytics import LatencyAnalytics
 from app.guardrails import GuardrailsEngine
+from app.supabase_client import supabase_db
 from app.stt import SarvamSTTClient, MockSTTClient
 from app.generator import GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
@@ -859,6 +860,21 @@ class PipelineHarness:
 
         if resp.success and not resp.is_fallback:
             self.semantic_cache.put(query_text, query_vector, language, resp)
+
+        # Async background write to Supabase (0ms impact on user query response)
+        asyncio.create_task(
+            supabase_db.log_user_query(
+                query_id=query_id,
+                original_query=query_text,
+                answer=answer,
+                language=language,
+                zone=zone,
+                confidence=resp.confidence,
+                latency_ms=record.stages,
+                total_latency_ms=record.total_without_stt_ms,
+                session_id=session_id,
+            )
+        )
 
         return resp
 
