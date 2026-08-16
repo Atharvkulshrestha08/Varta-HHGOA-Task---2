@@ -78,17 +78,16 @@ async def run_benchmark():
         metadata_path="data/chunks_metadata.json",
     )
     _ = vs.model  # prewarm
-    
     # Generator
     groq_key = os.getenv("GROQ_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key:
-        gen = GeminiGenerator(api_key=gemini_key, model_name="gemini-flash-latest", max_output_tokens=120)
-        print("🟢 Engine: Google Gemini Cloud (Mumbai DC — Low Latency)")
-    elif groq_key:
-        gen = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="llama-3.1-8b-instant", max_output_tokens=100)
-        print("🟡 Engine: Groq LPU (llama-3.1-8b-instant)")
+    if groq_key:
+        gen = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="llama-3.1-8b-instant", max_output_tokens=250)
+        print("🟢 Engine: Groq LPU (llama-3.1-8b-instant @ 850 tok/s)")
         await gen.prewarm()
+    elif gemini_key:
+        gen = GeminiGenerator(api_key=gemini_key)
+        print("🟡 Engine: Gemini Flash")
     else:
         gen = MockGenerator()
         print("⚪ Engine: Mock")

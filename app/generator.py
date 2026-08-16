@@ -73,6 +73,37 @@ LANG_NAMES = {
 # ═══════════════════════════════════════════════════════════════════
 # Optimized System Prompt — Quality Answers + Sub-200ms Latency
 # ═══════════════════════════════════════════════════════════════════
+def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
+    """
+    Adaptive Dynamic Token Allocator:
+    Classifies query complexity to assign optimal max_output_tokens:
+    - Simple Factual (short queries <= 7 words, simple fact/yes-no): 60 tokens (~40ms decode)
+    - Indic Multilingual (Hindi, Bengali, Tamil, Telugu): 140 tokens (~100ms decode for 3-part format)
+    - Complex / Elaborate (Math, Science, "Explain", "Recipe", "Schrodinger", long prompts > 10 words): 250 tokens (~180ms decode)
+    """
+    q_clean = question.strip().lower()
+    words = q_clean.split()
+    word_count = len(words)
+
+    is_complex = any(kw in q_clean for kw in [
+        "explain", "recipe", "how to", "schrodinger", "derivative",
+        "integral", "equation", "quantum", "thermodynamics", "elaborate",
+        "describe", "history of", "difference between", "step by step", "teach"
+    ])
+
+    is_indic = language in [
+        "hin_Deva", "ben_Beng", "tam_Taml", "tel_Telu", "mar_Deva", "guj_Gujr",
+        "hi-IN", "bn-IN", "ta-IN", "te-IN", "mr-IN", "gu-IN"
+    ]
+
+    if is_complex or word_count > 10:
+        return 250
+    elif is_indic:
+        return 140
+    else:
+        return 60
+
+
 # High-Speed Complete Answer Prompt — Zero Cutoff Guarantee
 # ═══════════════════════════════════════════════════════════════════
 SYSTEM_PROMPT = """You are VartaLaap, an ultra-fast multilingual RAG assistant.
@@ -161,6 +192,9 @@ class GroqGenerator:
         conversation_history: list[dict] = None,
     ) -> dict:
         lang_name = LANG_NAMES.get(language, "the same language as the question")
+
+        # Dynamic Token Allocation based on query complexity
+        dynamic_tokens = determine_dynamic_max_tokens(question, language)
 
         # Input Token Pruning: Top-2 most relevant passages (shaves ~300 input tokens)
         context_parts = []
