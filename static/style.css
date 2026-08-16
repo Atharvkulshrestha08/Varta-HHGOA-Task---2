@@ -1371,3 +1371,18 @@ body {
     color: #bae6fd !important;
     text-decoration: underline;
 }
+
+/* ── KaTeX Mathematical Formula Styling ── */
+.katex {
+    font-size: 1.15em !important;
+    color: #fef08a !important; /* Soft golden tint for crisp visibility */
+}
+.katex-display {
+    margin: 14px 0 !important;
+    padding: 12px 16px !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-radius: 8px !important;
+    border-left: 3px solid var(--brand-yellow) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}

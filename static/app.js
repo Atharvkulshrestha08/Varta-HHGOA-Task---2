@@ -158,6 +158,15 @@ async function startRecording() {
 
         state.mediaRecorder.onstop = () => {
             console.log('[MIC] MediaRecorder stopped. Total chunks collected:', state.audioChunks.length);
+            if (state.cancelledRecording) {
+                console.log('[MIC] Recording was cancelled due to silence.');
+                state.cancelledRecording = false;
+                stream.getTracks().forEach(t => t.stop());
+                if (state.silenceTimer) clearInterval(state.silenceTimer);
+                if (state.maxDurationTimer) clearTimeout(state.maxDurationTimer);
+                setTimeout(() => { if (!state.isRecording) els.micLabel.textContent = 'Tap to speak'; }, 2000);
+                return;
+            }
             const blob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType });
             stream.getTracks().forEach(t => t.stop());
             if (state.silenceTimer) clearInterval(state.silenceTimer);
@@ -172,19 +181,22 @@ async function startRecording() {
         state.recordStartTime = Date.now();
 
         els.micButton.classList.add('recording');
-        els.micLabel.textContent = 'Listening... (Tap to stop)';
+        els.micLabel.textContent = 'Listening... (Speak now)';
         drawWaveform();
 
-        // Safety Max Timer: auto-stops after 8 seconds max
+        // Safety Max Timer: Hard cap at 25 seconds (Sarvam limit is 30s)
         state.maxDurationTimer = setTimeout(() => {
             if (state.isRecording) {
-                console.log('[MIC] Reached 8s max duration. Auto-stopping...');
+                console.log('[MIC] Reached 25s max safety limit. Auto-submitting...');
                 els.micLabel.textContent = 'Submitting...';
                 stopRecording();
             }
-        }, 8000);
+        }, 25000);
 
-        // VAD Silence Detection: auto-stops 1.8s after user stops speaking
+        // VAD Silence Detection Engine:
+        // 1. Initial Silence: If NO sound/speech is made for 5 seconds from start, auto-close mic.
+        // 2. Continuous Speech: While user is speaking (energy > threshold), mic stays active.
+        // 3. Post-Speech Silence: After speaking, if user is silent for 2.5s, auto-submit.
         const pBuffer = new Uint8Array(state.analyser.frequencyBinCount);
         state.silenceTimer = setInterval(() => {
             if (!state.isRecording || !state.analyser) return;
@@ -194,19 +206,28 @@ async function startRecording() {
             for (let i = 0; i < pBuffer.length; i++) sSum += pBuffer[i];
             const avgVal = sSum / pBuffer.length;
 
+            const timeSinceStart = Date.now() - state.recordStartTime;
+
             if (avgVal > 8) {
                 // User is actively speaking
                 state.hasSpoken = true;
                 state.silenceStart = null;
-                els.micLabel.textContent = 'Listening... (Tap to stop)';
+                els.micLabel.textContent = 'Listening... (Speaking detected)';
+            } else if (!state.hasSpoken) {
+                // User has not started speaking yet
+                if (timeSinceStart >= 5000) {
+                    console.log('[VAD] No speech detected within 5 seconds. Closing microphone.');
+                    els.micLabel.textContent = 'No speech detected (5s silence)';
+                    stopRecording(true); // cancelled due to initial silence
+                }
             } else if (state.hasSpoken) {
-                // User was speaking and is now silent
+                // User spoke previously and is now silent
                 if (!state.silenceStart) {
                     state.silenceStart = Date.now();
-                } else if (Date.now() - state.silenceStart >= 1800) {
-                    console.log('[VAD] Silence detected for 1.8s. Auto-stopping recording...');
+                } else if (Date.now() - state.silenceStart >= 2500) {
+                    console.log('[VAD] Speech concluded (2.5s silence). Auto-submitting recording...');
                     els.micLabel.textContent = 'Processing speech...';
-                    stopRecording();
+                    stopRecording(false);
                 }
             }
         }, 100);
@@ -220,13 +241,14 @@ async function startRecording() {
     }
 }
 
-function stopRecording() {
-    console.log('[MIC] stopRecording invoked. Current state:', state.isRecording);
+function stopRecording(cancelled = false) {
+    console.log('[MIC] stopRecording invoked. cancelled =', cancelled, 'Current state:', state.isRecording);
     if (!state.isRecording) return;
 
     state.isRecording = false;
+    state.cancelledRecording = cancelled;
     els.micButton.classList.remove('recording');
-    els.micLabel.textContent = 'Processing...';
+    els.micLabel.textContent = cancelled ? 'No speech detected (5s silence)' : 'Processing speech...';
     cancelAnimationFrame(state.animationFrame);
 
     if (state.silenceTimer) clearInterval(state.silenceTimer);
@@ -405,6 +427,7 @@ function renderAnswer(data) {
 
     // Answer text (formatted with transliteration & translation support)
     els.answerText.innerHTML = renderFormattedAnswer(data.answer || 'No answer generated.');
+    renderMath(els.answerText);
 
     // Add to multi-turn conversation history
     if (data.original_query && data.answer) {
@@ -527,6 +550,8 @@ function renderChatThread() {
             </div>
         `;
     }).join('');
+
+    renderMath(els.chatThreadMessages);
 }
 
 function escapeHtml(text) {
@@ -547,6 +572,54 @@ function renderFormattedAnswer(text) {
     escaped = escaped.replace(/\[Source:\s*([^\]]+)\]/g, '<span class="source-inline-badge">📎 Source: $1</span>');
     
     return escaped;
+}
+
+/**
+ * KaTeX Mathematical Formula Renderer
+ * Automatically parses inline ($...$, \(...\)) and block ($$...$$, \[...\]) LaTeX math.
+ */
+function renderMath(element) {
+    if (!element) return;
+    
+    const runKaTeX = () => {
+        if (window.renderMathInElement) {
+            try {
+                window.renderMathInElement(element, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\[', right: '\\]', display: true },
+                        { left: '\\(', right: '\\)', display: false }
+                    ],
+                    ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+                    throwOnError: false
+                });
+            } catch (e) {
+                console.warn('[KaTeX] renderMathInElement error:', e);
+            }
+        } else if (window.katex) {
+            try {
+                // Fallback manual regex replacer if auto-render extension hasn't loaded yet
+                element.innerHTML = element.innerHTML.replace(/\$([^\$]+)\$/g, (match, expr) => {
+                    try {
+                        const cleanExpr = expr.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                        return window.katex.renderToString(cleanExpr, { throwOnError: false });
+                    } catch {
+                        return match;
+                    }
+                });
+            } catch (e) {
+                console.warn('[KaTeX] inline render error:', e);
+            }
+        }
+    };
+
+    if (window.renderMathInElement || window.katex) {
+        runKaTeX();
+    } else {
+        // Wait briefly if script is deferred
+        setTimeout(runKaTeX, 300);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
