@@ -23,6 +23,7 @@ import os
 import logging
 import time
 from pathlib import Path
+from typing import Optional, Any, List, Dict
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
@@ -38,6 +39,7 @@ from app.harness import PipelineHarness, QueryRequest, LearnRequest
 from app.stt import SarvamSTTClient, MockSTTClient
 from app.generator import GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
+from app.wikipedia_retriever import WikipediaRetriever
 
 # Load environment variables
 load_dotenv()
@@ -60,6 +62,7 @@ METADATA_PATH = str(DATA_DIR / "chunks_metadata.json")
 vector_store: VectorStore = None
 harness: PipelineHarness = None
 analytics: LatencyAnalytics = None
+wiki_retriever: WikipediaRetriever = None
 
 # ── HITL Feedback Store (in-memory for hackathon) ──
 feedback_store: list[dict] = []
@@ -68,7 +71,7 @@ feedback_store: list[dict] = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize all pipeline components at startup."""
-    global vector_store, harness, analytics
+    global vector_store, harness, analytics, wiki_retriever
 
     logger.info("=" * 60)
     logger.info("Voice-Enabled RAG Pipeline - Starting up...")
@@ -118,13 +121,18 @@ async def lifespan(app: FastAPI):
         min_hallucination_overlap=0.15,
     )
 
-    # 6. Initialize harness & pre-warm embedding model for sub-200ms latency
+    # 6. Initialize Wikipedia retriever
+    wiki_retriever = WikipediaRetriever(timeout=3.5)
+    logger.info("[OK] Multilingual Wikipedia retriever initialized")
+
+    # 7. Initialize harness & pre-warm embedding model for sub-200ms latency
     harness = PipelineHarness(
         vector_store=vector_store,
         stt_client=stt_client,
         generator=generator,
         analytics=analytics,
         guardrails=guardrails,
+        wiki_retriever=wiki_retriever,
     )
     # Pre-warm model in memory during server startup
     _ = vector_store.model
@@ -136,6 +144,8 @@ async def lifespan(app: FastAPI):
     yield  # Server runs
 
     logger.info("Shutting down...")
+    if wiki_retriever:
+        await wiki_retriever.close()
 
 
 # ── Create FastAPI app ──
@@ -291,6 +301,30 @@ async def learn_knowledge(request: LearnRequest):
         language=request.language or "eng_Latn",
     )
     return result
+
+
+class WikiSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, description="Topic or entity to search on Wikipedia")
+    language: Optional[str] = Field("eng_Latn", description="Target Indic language code")
+
+
+@app.post("/api/wiki/search")
+async def search_wikipedia(request: WikiSearchRequest):
+    """
+    Direct Wikipedia topic lookup across 5 Indic languages + English.
+    Returns verified encyclopedic summary and canonical URL.
+    """
+    if not wiki_retriever:
+        raise HTTPException(status_code=503, detail="Wikipedia retriever not initialized")
+
+    result = await wiki_retriever.fetch_topic_summary(
+        query=request.query,
+        language=request.language or "eng_Latn",
+    )
+    if not result:
+        return {"success": False, "message": "No matching Wikipedia topic found", "data": None}
+
+    return {"success": True, "data": result}
 
 
 @app.get("/api/analytics")

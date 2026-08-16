@@ -206,6 +206,11 @@ CODE_INJECTION_PATTERNS = [
     # Direct command execution patterns
     r'\b(eval|exec|import\s+os|subprocess|__import__|globals|locals)\s*\(',
     r'\bos\.(system|popen|exec)',
+    r'(;\s*cat\s+/etc/|\bcat\s+/etc/passwd|\bnc\s+[a-zA-Z0-9\.\-]+\s+\d+|\bcurl\s+http|\bwget\s+http|\brm\s+-rf\b)',
+    # SQL injection patterns
+    r'\b(select\s+\*|union\s+select|insert\s+into|drop\s+table|where\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1)\b',
+    # Path traversal
+    r'(\.\./\.\./|\.\.\\\.\.\\)',
     # Markdown/HTML injection for visual override
     r'<script[^>]*>',
     r'<iframe[^>]*>',

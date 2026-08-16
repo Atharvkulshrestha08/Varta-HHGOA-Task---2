@@ -445,23 +445,26 @@ function renderAnswer(data) {
 
     // Sources
     if (data.sources && data.sources.length > 0) {
-        els.sourcesList.innerHTML = data.sources.map(s =>
-            `<div class="source-card">
+        els.sourcesList.innerHTML = data.sources.map(s => {
+            const isWiki = s.strategy === 'wikipedia_retrieval' || (s.source && s.source.toLowerCase().includes('wikipedia'));
+            return `
+            <div class="source-card ${isWiki ? 'source-card-wiki' : ''}">
                 <div class="source-header">
-                    <span class="source-rank">Passage ${s.rank + 1}</span>
+                    <span class="source-rank">${isWiki ? '📖 Wikipedia Intelligence' : `Passage ${s.rank + 1}`}</span>
                     <span>
-                        <span class="source-score">Score: ${s.score.toFixed(3)}</span>
-                        ${s.strategy ? `<span class="source-strategy">${s.strategy}</span>` : ''}
+                        <span class="source-score">Relevance: ${s.score.toFixed(2)}</span>
+                        ${s.strategy ? `<span class="source-strategy ${isWiki ? 'strategy-wiki' : ''}">${isWiki ? '🌐 Live Wiki Grounding' : s.strategy}</span>` : ''}
                     </span>
                 </div>
-                <div>${escapeHtml(s.text)}</div>
-            </div>`
-        ).join('');
+                <div class="source-body">${escapeHtml(s.text)}</div>
+                ${s.url ? `<div class="source-wiki-link" style="margin-top: 8px; font-size: 0.82rem;"><a href="${encodeURI(s.url)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; text-decoration: underline; display: inline-flex; align-items: center; gap: 4px; font-weight: 500;">🔗 Read Full Article on Wikipedia &rarr;</a></div>` : ''}
+            </div>`;
+        }).join('');
     } else {
         els.sourcesList.innerHTML = `
             <div style="background: rgba(245, 213, 32, 0.08); border: 1px dashed rgba(245, 213, 32, 0.4); border-radius: 8px; padding: 14px; color: var(--text-secondary); font-size: 0.85rem; display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 1.2rem;">💡</span>
-                <span><strong>Grounded Response:</strong> Synthesized across conversational dialogue context and Vartaलाप's active vector store.</span>
+                <span><strong>Grounded Response:</strong> Synthesized across conversational dialogue context, live Wikipedia intelligence, and Vartaलाप's active vector store.</span>
             </div>
         `;
     }

@@ -36,6 +36,7 @@ from app.guardrails import GuardrailsEngine
 from app.stt import SarvamSTTClient, MockSTTClient
 from app.generator import GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
+from app.wikipedia_retriever import WikipediaRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,8 @@ class SourcePassage(BaseModel):
     rank: int
     language: str = ""
     strategy: str = ""
+    source: Optional[str] = None
+    url: Optional[str] = None
     is_selected: bool = False
 
 
@@ -308,12 +311,14 @@ class PipelineHarness:
         generator: GeminiGenerator | MockGenerator,
         analytics: LatencyAnalytics,
         guardrails: GuardrailsEngine | None = None,
+        wiki_retriever: WikipediaRetriever | None = None,
     ):
         self.vector_store = vector_store
         self.stt_client = stt_client
         self.generator = generator
         self.analytics = analytics
         self.guardrails = guardrails or GuardrailsEngine()
+        self.wiki_retriever = wiki_retriever or WikipediaRetriever()
 
         # Circuit breakers for external services
         self.stt_circuit = CircuitBreaker(threshold=3, reset_timeout=30)
@@ -585,6 +590,46 @@ class PipelineHarness:
                 total_latency_ms=sum(record.stages.values()),
             )
 
+        # ── Step 5b: Live Wikipedia Intelligence Augmentation ──
+        top_score = max((r.get("score", 0) for r in results), default=0.0)
+        # If vector search confidence is below 0.45 or results are empty, fetch encyclopedic context from Wikipedia
+        if top_score < 0.45 or len(results) == 0:
+            try:
+                with self.analytics.time_stage(record, "wikipedia_retrieval"):
+                    wiki_data = await self.wiki_retriever.fetch_topic_summary(
+                        query=search_text, language=language
+                    )
+                if wiki_data and wiki_data.get("extract"):
+                    logger.info(f"Wikipedia intelligence matched: '{wiki_data.get('title')}'")
+                    wiki_passage = {
+                        "text": f"Wikipedia ({wiki_data['title']}): {wiki_data['extract']}",
+                        "score": 0.88,
+                        "rank": 0,
+                        "language": wiki_data.get("language", language),
+                        "strategy": "wikipedia_retrieval",
+                        "source": f"Wikipedia: {wiki_data['title']}",
+                        "url": wiki_data.get("url", ""),
+                        "is_selected": True,
+                    }
+                    for idx, r in enumerate(results):
+                        r["rank"] = idx + 1
+                    results = [wiki_passage] + results
+
+                    # Dynamically cache knowledge into live FAISS index
+                    try:
+                        self.vector_store.add_passages([{
+                            "text": wiki_data["extract"],
+                            "language": wiki_data.get("language", language),
+                            "strategy": "wikipedia_cached",
+                            "source": f"Wikipedia: {wiki_data['title']}",
+                            "url": wiki_data.get("url", ""),
+                            "is_selected": True,
+                        }])
+                    except Exception as ce:
+                        logger.debug(f"Failed to cache Wikipedia passage into FAISS: {ce}")
+            except Exception as we:
+                logger.debug(f"Wikipedia retrieval skipped: {we}")
+
         # ── Step 6: Retrieval Guardrails ──
         with self.analytics.time_stage(record, "guardrails_retrieval"):
             retrieval_check = self.guardrails.check_retrieval(results)
@@ -602,9 +647,11 @@ class PipelineHarness:
                     SourcePassage(
                         text=r["text"][:300],
                         score=round(r["score"], 3),
-                        rank=r["rank"],
+                        rank=r.get("rank", 0),
                         language=r.get("language", ""),
                         strategy=r.get("strategy", ""),
+                        source=r.get("source", None),
+                        url=r.get("url", None),
                     )
                     for r in results
                 ],
@@ -652,9 +699,11 @@ class PipelineHarness:
                         SourcePassage(
                             text=r["text"][:300],
                             score=round(r["score"], 3),
-                            rank=r["rank"],
+                            rank=r.get("rank", 0),
                             language=r.get("language", ""),
                             strategy=r.get("strategy", ""),
+                            source=r.get("source", None),
+                            url=r.get("url", None),
                         )
                         for r in results
                     ],
@@ -686,9 +735,11 @@ class PipelineHarness:
                     SourcePassage(
                         text=r["text"][:300],
                         score=round(r["score"], 3),
-                        rank=r["rank"],
+                        rank=r.get("rank", 0),
                         language=r.get("language", ""),
                         strategy=r.get("strategy", ""),
+                        source=r.get("source", None),
+                        url=r.get("url", None),
                     )
                     for r in results
                 ],
@@ -718,20 +769,42 @@ class PipelineHarness:
         self.analytics.finish_record(record)
 
         is_gen_knowledge = "[source: general ai knowledge]" in answer.lower()
-        filtered_sources = []
+        
+        # Surfaced verified Wikipedia sources
+        wiki_sources = [
+            SourcePassage(
+                text=r["text"][:300],
+                score=round(r["score"], 3),
+                rank=r.get("rank", 0),
+                language=r.get("language", ""),
+                strategy=r.get("strategy", ""),
+                source=r.get("source", None),
+                url=r.get("url", None),
+                is_selected=True,
+            )
+            for r in results
+            if r.get("strategy") == "wikipedia_retrieval" or (r.get("source") and "wikipedia" in r.get("source", "").lower())
+        ]
+
+        # Surfaced local vector database sources
+        faiss_sources = []
         if not is_gen_knowledge:
-            filtered_sources = [
+            faiss_sources = [
                 SourcePassage(
                     text=r["text"][:300],
                     score=round(r["score"], 3),
-                    rank=r["rank"],
+                    rank=r.get("rank", 0),
                     language=r.get("language", ""),
                     strategy=r.get("strategy", ""),
+                    source=r.get("source", None),
+                    url=r.get("url", None),
                     is_selected=r.get("is_selected", False),
                 )
                 for r in results
-                if r.get("score", 0) >= 0.35
+                if r.get("strategy") != "wikipedia_retrieval" and r.get("score", 0) >= 0.35
             ]
+
+        filtered_sources = wiki_sources + faiss_sources
 
         return PipelineResponse(
             query_id=query_id,
