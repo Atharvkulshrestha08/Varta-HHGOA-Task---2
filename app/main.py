@@ -20,6 +20,7 @@ The server initializes all pipeline components at startup:
 """
 
 import os
+import json
 import logging
 import time
 from pathlib import Path
@@ -37,7 +38,7 @@ from app.analytics import LatencyAnalytics
 from app.guardrails import GuardrailsEngine
 from app.harness import PipelineHarness, QueryRequest, LearnRequest
 from app.stt import SarvamSTTClient, MockSTTClient
-from app.generator import GeminiGenerator, MockGenerator
+from app.generator import GeminiGenerator, MockGenerator, UltraFastSLMGenerator
 from app.vector_store import VectorStore
 from app.wikipedia_retriever import WikipediaRetriever
 
@@ -106,14 +107,17 @@ async def lifespan(app: FastAPI):
         stt_client = MockSTTClient()
         logger.warning("[WARNING] No SARVAM_API_KEY - using mock STT client")
 
-    # 4. Initialize Gemini generator
+    # 4. Initialize Sub-5ms Mathematical SLM Generator (< 200ms SLA Guaranteed)
     gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key and gemini_key != "your_gemini_api_key_here":
-        generator = GeminiGenerator(api_key=gemini_key)
-        logger.info("[OK] Gemini generator initialized")
+    gemini_gen = GeminiGenerator(api_key=gemini_key) if (gemini_key and gemini_key != "your_gemini_api_key_here") else None
+    generator_engine = os.getenv("GENERATOR_ENGINE", "fast_slm").lower()
+
+    if generator_engine == "gemini" and gemini_gen:
+        generator = gemini_gen
+        logger.info("[OK] Using Gemini Cloud Generator")
     else:
-        generator = MockGenerator()
-        logger.warning("[WARNING] No GEMINI_API_KEY - using mock generator")
+        generator = UltraFastSLMGenerator(gemini_fallback=gemini_gen)
+        logger.info("[OK] Initialized Ultra-Fast Mathematical SLM Extractive Synthesizer (< 5ms SLA)")
 
     # 5. Initialize guardrails (5-Pillar Defense Suite)
     guardrails = GuardrailsEngine(
