@@ -137,16 +137,16 @@ class GroqGenerator:
         self,
         api_key: str,
         gemini_api_key: Optional[str] = None,
-        model_name: str = "groq/compound-mini",
-        max_output_tokens: int = 250,  # Generous budget to guarantee complete, untruncated answers
+        model_name: str = "allam-2-7b",
+        max_output_tokens: int = 250,
         temperature: float = 0.1,
     ):
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "groq/compound-mini",
-            "openai/gpt-oss-20b",
             "allam-2-7b",
+            "openai/gpt-oss-20b",
+            "groq/compound-mini",
             "groq/compound",
             "qwen/qwen3.6-27b",
         ]
