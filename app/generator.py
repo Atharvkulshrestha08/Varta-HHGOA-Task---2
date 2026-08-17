@@ -168,7 +168,17 @@ class GroqGenerator:
     ) -> dict:
         lang_name = LANG_NAMES.get(language, "English")
 
-        # Dynamic Token Allocation based on Indic vs English
+        # Detect Indic script or code requests
+        is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
+            k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
+        )
+        is_code = any(kw in question.lower() for kw in ["python", "code", "program", "function", "javascript", "java", "c++", "लिख कर दो", "প্রোগ্রাম"])
+
+        # Route Indic / Code queries directly to Gemini for 100% native fluency, 3-part structure, and code synthesis
+        if (is_indic or is_code) and self._gemini_backup:
+            return await self._gemini_backup.generate(question, passages, language, conversation_history)
+
+        # Dynamic Token Allocation for English Groq LPU path
         dynamic_tokens = determine_dynamic_max_tokens(question, language)
 
         # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
@@ -197,11 +207,7 @@ class GroqGenerator:
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        if lang_name and "english" not in lang_name.lower() and "unknown" not in lang_name.lower():
-            system = f"You are VartaLaap. Answer concisely in 1-2 complete sentences in {lang_name}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
-        else:
-            system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
-
+        system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
         user_prompt = f"{history_context}{context_block}{question}"
 
         client = self._get_client()
@@ -218,7 +224,7 @@ class GroqGenerator:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_prompt},
                 ],
-                "max_tokens": dynamic_tokens,  # Hard 60 tokens
+                "max_tokens": dynamic_tokens,
                 "temperature": self.temperature,
             }
             try:
@@ -278,23 +284,16 @@ Include:
 Separate each paragraph with '---'. Do not use markdown headers, bullets, or extra filler. Each paragraph must be rich with keywords, names, and factual entities."""
 
         client = self._get_client()
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         for m_name in self.fallback_models:
             payload = {
                 "model": m_name,
                 "messages": [{"role": "user", "content": expansion_prompt}],
-                "max_tokens": 400,
+                "max_tokens": 500,
                 "temperature": 0.2,
             }
             try:
-                resp = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json=payload,
-                    headers=headers,
-                )
+                resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
                     choices = data.get("choices", [])
@@ -318,36 +317,38 @@ Separate each paragraph with '---'. Do not use markdown headers, bullets, or ext
 
 class GeminiGenerator:
     """
-    Answer generator using ultra-low-latency Gemini 1.5/2.0 Flash.
+    High-accuracy, culturally fluent answer generator using Gemini 3.5 Flash Lite REST API.
+    Provides 3-part structured output for non-English queries (Native + Transliteration + Translation).
     """
 
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-flash-latest",
+        model_name: str = "gemini-3.5-flash-lite",
         max_output_tokens: int = 250,
-        temperature: float = 0.1,
+        temperature: float = 0.2,
     ):
-        genai.configure(api_key=api_key)
+        self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "gemini-3.5-flash",
             "gemini-3.5-flash-lite",
             "gemini-3.6-flash",
+            "gemini-3.5-flash",
             "gemini-flash-latest",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
-        self._generation_config = genai.GenerationConfig(
-            max_output_tokens=max_output_tokens,
-            temperature=temperature,
-        )
-        self._model_instances = {}
-        for m in dict.fromkeys(self.fallback_models):
-            try:
-                self._model_instances[m] = genai.GenerativeModel(m)
-            except Exception as e:
-                logger.debug(f"Could not pre-init model {m}: {e}")
+        self._client: Optional[httpx.AsyncClient] = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            limits = httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=120.0)
+            self._client = httpx.AsyncClient(timeout=6.0, limits=limits)
+        return self._client
+
+    async def close(self):
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
     async def generate(
         self,
@@ -356,10 +357,14 @@ class GeminiGenerator:
         language: str = "unknown",
         conversation_history: list[dict] = None,
     ) -> dict:
-        lang_name = LANG_NAMES.get(language, "the same language as the question")
+        lang_name = LANG_NAMES.get(language, "English")
 
-        # Only inject passages if they meet true semantic relevance threshold (>= 0.57)
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.57][:2]
+        is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
+            k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
+        )
+
+        # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
+        top_passages = [p for p in passages if p.get("score", 0) >= 0.68][:2]
 
         if top_passages:
             context_parts = []
@@ -371,7 +376,7 @@ class GeminiGenerator:
         else:
             context_block = ""
 
-        # Conversation history pruning: last 1 exchange only (~30 tokens)
+        # Conversation history pruning
         history_context = ""
         if conversation_history:
             turns = []
@@ -382,41 +387,61 @@ class GeminiGenerator:
                     clean_text = (text.split("\n\n")[0] if role == "Assistant" else text)[:100]
                     turns.append(f"{role}: {clean_text}")
             if turns:
-                history_context = "Context:\n" + "\n".join(turns) + "\n\n"
+                history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        system = SYSTEM_PROMPT.format(language=lang_name)
-        user_prompt = f"{history_context}{context_block}Question: {question}\nLanguage: {lang_name}\n\nAnswer:"
+        if is_indic or (lang_name and "english" not in lang_name.lower()):
+            system = f"""You are VartaLaap, a multilingual voice AI assistant for Indian languages.
+Structure your response in 3 clean parts:
+1. Native Answer: 1-2 accurate, complete sentences in {lang_name} native script (or code block if requested).
+2. 🔤 Pronunciation (Latin alphabet transliteration):
+3. 🌐 English Meaning:
 
+If Context is provided, cite: [Source: Passage 1]. If no context, answer from general knowledge."""
+        else:
+            system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge."
+
+        user_prompt = f"{history_context}{context_block}{question}"
+
+        client = self._get_client()
         last_err = None
-        seen_models = set()
+
         for m_name in self.fallback_models:
-            if m_name in seen_models:
-                continue
-            seen_models.add(m_name)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.api_key}"
+            payload = {
+                "system_instruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                "generationConfig": {
+                    "maxOutputTokens": self.max_output_tokens,
+                    "temperature": self.temperature,
+                },
+            }
             try:
-                model_inst = self._model_instances.get(m_name) or genai.GenerativeModel(m_name)
-                response = await model_inst.generate_content_async(
-                    [system, user_prompt],
-                    generation_config=self._generation_config,
-                )
-                answer = response.text.strip() if (response and response.text) else ""
-                if answer:
-                    return {
-                        "answer": answer,
-                        "model": m_name,
-                        "passages_used": len(passages),
-                        "success": True,
-                        "error": None,
-                    }
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            answer = parts[0].get("text", "").strip()
+                            if answer:
+                                return {
+                                    "answer": answer,
+                                    "model": f"gemini/{m_name}",
+                                    "passages_used": len(top_passages),
+                                    "success": True,
+                                    "error": None,
+                                }
+                else:
+                    last_err = f"Gemini Error {resp.status_code}: {resp.text}"
             except Exception as e:
                 last_err = e
-                logger.warning(f"Model {m_name} failed: {e}. Trying fallback model...")
 
         logger.error(f"All Gemini models exhausted. Final error: {last_err}")
         return {
             "answer": "",
-            "model": self.primary_model_name,
-            "passages_used": len(passages),
+            "model": "gemini/exhausted",
+            "passages_used": len(top_passages),
             "success": False,
             "error": str(last_err),
         }
@@ -436,18 +461,25 @@ Include:
 
 Separate each paragraph with '---'. Do not use markdown headers, bullets, or extra filler. Each paragraph must be rich with keywords, names, and factual entities."""
 
-        seen_models = set()
+        client = self._get_client()
         for m_name in self.fallback_models:
-            if m_name in seen_models:
-                continue
-            seen_models.add(m_name)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.api_key}"
+            payload = {
+                "contents": [{"role": "user", "parts": [{"text": expansion_prompt}]}],
+                "generationConfig": {"maxOutputTokens": 600, "temperature": 0.2},
+            }
             try:
-                model_inst = genai.GenerativeModel(m_name)
-                resp = model_inst.generate_content(expansion_prompt)
-                if resp and resp.text:
-                    raw_chunks = [p.strip() for p in resp.text.split("---") if len(p.strip()) > 30]
-                    if raw_chunks:
-                        return raw_chunks
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            raw_text = parts[0].get("text", "")
+                            raw_chunks = [p.strip() for p in raw_text.split("---") if len(p.strip()) > 30]
+                            if raw_chunks:
+                                return raw_chunks
             except Exception as e:
                 logger.warning(f"Knowledge expansion model {m_name} failed: {e}")
 
