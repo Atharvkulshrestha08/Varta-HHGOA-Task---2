@@ -61,29 +61,8 @@ LANG_NAMES = {
 # Ultra-Low Latency Dynamic Token Allocator
 # ═══════════════════════════════════════════════════════════════════
 def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
-    """
-    Allocates tokens dynamically:
-    - Explanatory / Complex queries ('explain', 'quantum', 'five year old', 'why', 'how'): 130 tokens (~145ms).
-    - Indic scripts (Hindi, Tamil, Bengali, Telugu): 130 tokens (~150ms).
-    - Fact / Trivia queries: 85 tokens (~120ms).
-    """
-    q_clean = question.strip().lower()
-    words = q_clean.split()
-
-    is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
-        k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
-    )
-
-    is_complex = any(kw in q_clean for kw in [
-        "explain", "recipe", "how to", "schrodinger", "derivative",
-        "integral", "equation", "quantum", "thermodynamics", "elaborate",
-        "describe", "history of", "difference between", "step by step", "teach",
-        "list", "five year old", "5 year old", "for kids", "why", "how does", "what is the difference", "tell me about"
-    ]) or len(words) > 7
-
-    if is_indic or is_complex:
-        return 130
-    return 85
+    """Hard-capped 80 tokens for consistent ~125ms sub-200ms response time."""
+    return 80
 
 
 def clean_and_complete_answer(text: str) -> str:
@@ -95,14 +74,14 @@ def clean_and_complete_answer(text: str) -> str:
         return text
     for punc in [".", "!", "?", "।", "॥"]:
         last_idx = text.rfind(punc)
-        if last_idx > 40:
+        if last_idx > 30:
             return text[:last_idx + 1].strip()
     return text
 
 
-# Ultra-Compact System Prompt
+# Ultra-Compact Direct Single-Answer Prompt
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 complete sentences in {language}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
+SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 complete sentences directly in {language}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
 
 USER_PROMPT_TEMPLATE = """{history_context}{context}Question: {question}
 
@@ -123,7 +102,7 @@ class GroqGenerator:
         api_key: str,
         gemini_api_key: Optional[str] = None,
         model_name: str = "allam-2-7b",
-        max_output_tokens: int = 70,
+        max_output_tokens: int = 80,
         temperature: float = 0.1,
     ):
         self.api_key = api_key
@@ -168,17 +147,6 @@ class GroqGenerator:
     ) -> dict:
         lang_name = LANG_NAMES.get(language, "English")
 
-        # Detect Indic script or code requests
-        is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
-            k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
-        )
-        is_code = any(kw in question.lower() for kw in ["python", "code", "program", "function", "javascript", "java", "c++", "लिख कर दो", "প্রোগ্রাম"])
-
-        # Route Indic / Code queries directly to Gemini for 100% native fluency, 3-part structure, and code synthesis
-        if (is_indic or is_code) and self._gemini_backup:
-            return await self._gemini_backup.generate(question, passages, language, conversation_history)
-
-        # Dynamic Token Allocation for English Groq LPU path
         dynamic_tokens = determine_dynamic_max_tokens(question, language)
 
         # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
@@ -207,7 +175,7 @@ class GroqGenerator:
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
+        system = SYSTEM_PROMPT.format(language=lang_name)
         user_prompt = f"{history_context}{context_block}{question}"
 
         client = self._get_client()
