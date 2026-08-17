@@ -62,21 +62,23 @@ LANG_NAMES = {
 # ═══════════════════════════════════════════════════════════════════
 def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
     """
-    Hard-capped 60 tokens for sub-200ms generation SLA:
-    TTFT (~60ms) + Gen (~70ms) = ~130ms total response time.
+    Allocates tokens dynamically:
+    - Indic scripts (Hindi, Tamil, Bengali, Telugu) require ~95 tokens to avoid mid-sentence cut-off.
+    - English queries complete 1-2 sentences in 65 tokens for ultra-fast 115ms latency.
     """
-    return 60
+    is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
+        k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
+    )
+    if is_indic:
+        return 95
+    return 65
 
 
-# Ultra-Compact System Prompt — Minimizes TTFT input latency
+# Ultra-Compact System Prompt
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 sentences in {language}. If Context is provided, use it and cite [Source: Passage 1]. If no Context, answer from general knowledge. Never mention missing context."
+SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 complete sentences in {language}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
 
-USER_PROMPT_TEMPLATE = """{history_context}Context:
-{context}
-
-Question: {question}
-Language: {language}
+USER_PROMPT_TEMPLATE = """{history_context}{context}Question: {question}
 
 Answer:"""
 
@@ -95,7 +97,7 @@ class GroqGenerator:
         api_key: str,
         gemini_api_key: Optional[str] = None,
         model_name: str = "allam-2-7b",
-        max_output_tokens: int = 60,
+        max_output_tokens: int = 70,
         temperature: float = 0.1,
     ):
         self.api_key = api_key
@@ -138,13 +140,13 @@ class GroqGenerator:
         language: str = "unknown",
         conversation_history: list[dict] = None,
     ) -> dict:
-        lang_name = LANG_NAMES.get(language, "the same language as the question")
+        lang_name = LANG_NAMES.get(language, "English")
 
-        # Hard-capped 60 tokens for sub-200ms SLA
+        # Dynamic Token Allocation based on Indic vs English
         dynamic_tokens = determine_dynamic_max_tokens(question, language)
 
-        # Only inject passages if they meet true semantic relevance threshold (>= 0.57)
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.57][:2]
+        # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
+        top_passages = [p for p in passages if p.get("score", 0) >= 0.68][:2]
 
         if top_passages:
             context_parts = []
@@ -169,8 +171,12 @@ class GroqGenerator:
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        system = SYSTEM_PROMPT.format(language=lang_name)
-        user_prompt = f"{history_context}{context_block}Question: {question}\nLanguage: {lang_name}\n\nAnswer:"
+        if lang_name and "english" not in lang_name.lower() and "unknown" not in lang_name.lower():
+            system = f"You are VartaLaap. Answer concisely in 1-2 complete sentences in {lang_name}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
+        else:
+            system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
+
+        user_prompt = f"{history_context}{context_block}{question}"
 
         client = self._get_client()
         headers = {

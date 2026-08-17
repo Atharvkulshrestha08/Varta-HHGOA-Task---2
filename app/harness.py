@@ -830,7 +830,7 @@ class PipelineHarness:
                     is_selected=r.get("is_selected", False),
                 )
                 for r in results
-                if r.get("strategy") != "wikipedia_retrieval" and r.get("score", 0) >= 0.58
+                if r.get("strategy") != "wikipedia_retrieval" and r.get("score", 0) >= 0.68
             ]
 
         filtered_sources = wiki_sources + faiss_sources
