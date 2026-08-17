@@ -22,7 +22,7 @@ import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
-# Language display names for the prompt (22 Scheduled Indic Languages + English)
+# Language display names for the 14 MSMARCO-XI Dataset Languages + English
 LANG_NAMES = {
     "hin_Deva": "Hindi (हिंदी)",
     "ben_Beng": "Bengali (বাংলা)",
@@ -37,15 +37,7 @@ LANG_NAMES = {
     "asm_Beng": "Assamese (অসমীয়া)",
     "urd_Arab": "Urdu (اردو)",
     "san_Deva": "Sanskrit (संस्कृतम्)",
-    "kok_Deva": "Konkani (कोंकणी)",
     "nep_Deva": "Nepali (नेपाली)",
-    "mai_Deva": "Maithili (मैथिली)",
-    "mni_Mtei": "Manipuri (মৈতৈলোন্)",
-    "kas_Arab": "Kashmiri (کٲشُر)",
-    "doi_Deva": "Dogri (डोगरी)",
-    "brx_Deva": "Bodo (बड़ो)",
-    "sat_Olck": "Santali (ᱥᱟᱱᱛᱟᱲᱤ)",
-    "snd_Arab": "Sindhi (سنڌي)",
     "eng_Latn": "English",
     "hi-IN": "Hindi (हिंदी)",
     "bn-IN": "Bengali (বাংলা)",
@@ -93,7 +85,9 @@ def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> in
 
     is_indic = language in [
         "hin_Deva", "ben_Beng", "tam_Taml", "tel_Telu", "mar_Deva", "guj_Gujr",
-        "hi-IN", "bn-IN", "ta-IN", "te-IN", "mr-IN", "gu-IN"
+        "kan_Knda", "mal_Mlym", "pan_Guru", "ori_Orya", "asm_Beng", "urd_Arab",
+        "san_Deva", "nep_Deva", "hi-IN", "bn-IN", "ta-IN", "te-IN", "mr-IN",
+        "gu-IN", "kn-IN", "ml-IN", "pa-IN", "or-IN", "as-IN", "ur-IN", "sa-IN", "ne-IN"
     ]
 
     if is_complex or word_count > 10:

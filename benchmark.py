@@ -13,13 +13,36 @@ from app.vector_store import VectorStore
 LATENCY_BUDGET_MS = 200.0
 
 QUERIES = [
-    "What is FAISS used for?",
+    # English Queries
     "What is the capital of India?",
-    "How does vector embedding work?",
+    "Who is the prime minister of India?",
+    "What is quantum gravity?",
+    "What is the integral of e^x?",
+    "Calculate the derivative of sin(x)...",
+    "What is Einstein's mass energy equation?",
+    "Explain the second law of thermodynamics...",
+    # Hindi (hin_Deva)
+    "भारत की राजधानी क्या है?",
+    "गंगा नदी कहाँ से निकलती है?",
+    "सर्वम एआई क्या है?",
+    "ज़र्ब को ज़र्ब क्यों कहा जाता है?",
+    "भारत की राजधानी का नाम बताओ...",
+    # Tamil (tam_Taml)
+    "இந்தியாவின் தலைநகரம் எது?",
+    "தமிழ்நாட்டின் தலைநகரம் எது?",
+    "மலைகளில் ஏன் இவ்வளவு குளிராக இருக்கிறது?",
+    # Bengali (ben_Beng)
+    "ভারতের রাজধানী কি?",
+    "পশ্চিমবঙ্গের রাজধানী কোনটি?",
+    "কলকাতা শহর কিসের জন্য বিখ্যাত?",
+    # Telugu (tel_Telu)
+    "భారతదేశ రాజధాని ఏమిటి?",
+    "హైదరాబాద్ నగరం గురించి చెప్పండి?",
+    # RAG Architecture & AI Queries
+    "What is FAISS used for?",
+    "How does HNSW indexing work?",
     "Which embedding model is fast on CPU?",
     "How do you reduce RAG latency?",
-    "What is quantum gravity?",
-    "Why normalize embeddings before indexing?",
     "What are the stages of a RAG pipeline?",
 ]
 

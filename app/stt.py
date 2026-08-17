@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text"
 
-# Sarvam language codes → our language codes (22 Scheduled Indic Languages + English)
+# Sarvam language codes → 14 MSMARCO-XI Dataset Languages + English
 SARVAM_LANG_MAP = {
     "hi-IN": "hin_Deva",
     "bn-IN": "ben_Beng",
@@ -33,15 +33,7 @@ SARVAM_LANG_MAP = {
     "as-IN": "asm_Beng",
     "ur-IN": "urd_Arab",
     "sa-IN": "san_Deva",
-    "kok-IN": "kok_Deva",
     "ne-IN": "nep_Deva",
-    "mai-IN": "mai_Deva",
-    "mni-IN": "mni_Mtei",
-    "ks-IN": "kas_Arab",
-    "doi-IN": "doi_Deva",
-    "brx-IN": "brx_Deva",
-    "sat-IN": "sat_Olck",
-    "sd-IN": "snd_Arab",
     "en-IN": "eng_Latn",
     "unknown": "unknown",
 }

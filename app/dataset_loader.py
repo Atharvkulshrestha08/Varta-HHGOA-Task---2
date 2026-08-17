@@ -21,12 +21,22 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Language code mapping for MSMARCO-XI
+# Language code mapping for the 14 official MSMARCO-XI dataset languages
 LANGUAGE_MAP = {
-    "hin_Deva": {"name": "Hindi", "hf_config": "default", "filter_code": "hin_Deva"},
-    "ben_Beng": {"name": "Bengali", "hf_config": "default", "filter_code": "ben_Beng"},
-    "tam_Taml": {"name": "Tamil", "hf_config": "default", "filter_code": "tam_Taml"},
-    "tel_Telu": {"name": "Telugu", "hf_config": "default", "filter_code": "tel_Telu"},
+    "hin_Deva": {"name": "Hindi", "hf_prefix": "hin", "filter_code": "hin_Deva"},
+    "ben_Beng": {"name": "Bengali", "hf_prefix": "ben", "filter_code": "ben_Beng"},
+    "tam_Taml": {"name": "Tamil", "hf_prefix": "tam", "filter_code": "tam_Taml"},
+    "tel_Telu": {"name": "Telugu", "hf_prefix": "tel", "filter_code": "tel_Telu"},
+    "mar_Deva": {"name": "Marathi", "hf_prefix": "mar", "filter_code": "mar_Deva"},
+    "guj_Gujr": {"name": "Gujarati", "hf_prefix": "guj", "filter_code": "guj_Gujr"},
+    "kan_Knda": {"name": "Kannada", "hf_prefix": "kan", "filter_code": "kan_Knda"},
+    "mal_Mlym": {"name": "Malayalam", "hf_prefix": "mal", "filter_code": "mal_Mlym"},
+    "pan_Guru": {"name": "Punjabi", "hf_prefix": "pan", "filter_code": "pan_Guru"},
+    "ori_Orya": {"name": "Odia", "hf_prefix": "ori", "filter_code": "ori_Orya"},
+    "asm_Beng": {"name": "Assamese", "hf_prefix": "asm", "filter_code": "asm_Beng"},
+    "urd_Arab": {"name": "Urdu", "hf_prefix": "urd", "filter_code": "urd_Arab"},
+    "san_Deva": {"name": "Sanskrit", "hf_prefix": "san", "filter_code": "san_Deva"},
+    "nep_Deva": {"name": "Nepali", "hf_prefix": "nep", "filter_code": "nep_Deva"},
 }
 
 
