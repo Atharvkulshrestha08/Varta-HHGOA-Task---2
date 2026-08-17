@@ -91,7 +91,6 @@ const els = {
 // Zonal & Language Selection Engine
 // ═══════════════════════════════════════════════════════════════
 
-function renderZonalLanguages(zoneKey) {
 function renderLanguages() {
     if (!els.languageSelector) return;
 
