@@ -151,10 +151,10 @@ class GroqGenerator:
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "qwen-qwq-32b",
-            "mixtral-8x7b-32768",
+            "llama-3.1-8b-instant",     # Primary: 850 tok/s, ~130ms
+            "llama-3.3-70b-versatile",  # Fallback 1: Larger but slower
+            "mixtral-8x7b-32768",       # Fallback 2
+            "qwen-qwq-32b",             # Fallback 3
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -243,7 +243,7 @@ class GroqGenerator:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_prompt},
                 ],
-                "max_tokens": self.max_output_tokens,
+                "max_tokens": dynamic_tokens,  # Adaptive: 60 (simple) / 140 (Indic) / 250 (complex)
                 "temperature": self.temperature,
             }
             try:
