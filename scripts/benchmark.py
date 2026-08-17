@@ -82,16 +82,20 @@ async def run_benchmark(num_queries: int, output_path: str = None):
     analytics = LatencyAnalytics(window_size=num_queries)
     guardrails = GuardrailsEngine()
 
-    # Use mock generator to isolate retrieval latency
-    # For full pipeline benchmark, set real API keys
+    groq_key = os.getenv("GROQ_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key and gemini_key != "your_gemini_api_key_here":
+    if groq_key:
+        from app.generator import GroqGenerator
+        generator = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="allam-2-7b")
+        logger.info("Using Groq LPU generator (allam-2-7b)")
+        await generator.prewarm()
+    elif gemini_key:
         from app.generator import GeminiGenerator
         generator = GeminiGenerator(api_key=gemini_key)
-        logger.info("Using real Gemini generator")
+        logger.info("Using Gemini generator")
     else:
         generator = MockGenerator()
-        logger.info("Using mock generator (set GEMINI_API_KEY for full benchmark)")
+        logger.info("Using mock generator")
 
     harness = PipelineHarness(
         vector_store=vector_store,
@@ -121,6 +125,7 @@ async def run_benchmark(num_queries: int, output_path: str = None):
             "success": response.success,
             "confidence": response.confidence,
         })
+        await asyncio.sleep(2.0)
 
         if (i + 1) % 10 == 0:
             logger.info(f"  Completed {i + 1}/{num_queries} queries")

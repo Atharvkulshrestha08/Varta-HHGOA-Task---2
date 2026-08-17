@@ -8,11 +8,12 @@ import os
 import sys
 import time
 import numpy as np
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 sys.stdout.reconfigure(encoding="utf-8")
-
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.analytics import LatencyAnalytics
 from app.guardrails import GuardrailsEngine
 from app.harness import PipelineHarness, QueryRequest
@@ -82,8 +83,8 @@ async def run_benchmark():
     groq_key = os.getenv("GROQ_API_KEY", "")
     gemini_key = os.getenv("GEMINI_API_KEY", "")
     if groq_key:
-        gen = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="llama-3.1-8b-instant", max_output_tokens=250)
-        print("🟢 Engine: Groq LPU (llama-3.1-8b-instant @ 850 tok/s)")
+        gen = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key, model_name="allam-2-7b", max_output_tokens=60)
+        print("🟢 Engine: Groq LPU (allam-2-7b @ 850 tok/s)")
         await gen.prewarm()
     elif gemini_key:
         gen = GeminiGenerator(api_key=gemini_key)
@@ -125,7 +126,7 @@ async def run_benchmark():
         status_lbl = "⚡ [CACHE HIT]" if is_cache else "🟢 [COLD RAG]"
         print(f"  {idx:02d}. {status_lbl} {dur_ms:6.2f} ms | Lang: {lang:8s} | Query: {query[:35]}...")
         if not is_cache:
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(2.0)
 
     # Calculate Percentiles
     lat_arr = np.array(latencies)
