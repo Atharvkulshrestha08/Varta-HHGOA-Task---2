@@ -131,24 +131,25 @@ import httpx
 class GroqGenerator:
     """
     Ultra-low-latency generator powered by Groq LPUs.
-    Primary: llama-3.1-8b-instant (~850 tok/s).
+    Primary: groq/compound-mini / openai/gpt-oss-20b.
     """
 
     def __init__(
         self,
         api_key: str,
         gemini_api_key: Optional[str] = None,
-        model_name: str = "llama-3.1-8b-instant",
+        model_name: str = "groq/compound-mini",
         max_output_tokens: int = 250,  # Generous budget to guarantee complete, untruncated answers
         temperature: float = 0.1,
     ):
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "llama-3.1-8b-instant",     # Primary: 850 tok/s, ~130ms
-            "llama-3.3-70b-versatile",  # Fallback 1: Larger but slower
-            "mixtral-8x7b-32768",       # Fallback 2
-            "qwen-qwq-32b",             # Fallback 3
+            "groq/compound-mini",
+            "openai/gpt-oss-20b",
+            "allam-2-7b",
+            "groq/compound",
+            "qwen/qwen3.6-27b",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
