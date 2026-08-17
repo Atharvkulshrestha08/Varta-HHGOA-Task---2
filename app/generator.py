@@ -91,11 +91,11 @@ def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> in
     ]
 
     if is_complex or word_count > 10:
-        return 250
+        return 120
     elif is_indic:
-        return 140
-    else:
         return 60
+    else:
+        return 35
 
 
 # High-Speed Complete Answer Prompt — Zero Cutoff Guarantee
@@ -103,10 +103,9 @@ def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> in
 SYSTEM_PROMPT = """You are VartaLaap, an ultra-fast multilingual RAG assistant.
 
 GROUNDING & ACCURACY:
-1. If Context answers the question, give a concise answer citing: [Source: Passage X].
+1. If Context answers the question, give a 1-sentence direct answer citing: [Source: Passage X].
 2. If Context is insufficient, answer accurately from general knowledge: [Source: General AI Knowledge].
-3. For math/science, format clean LaTeX ($...$).
-4. Keep answers clear, complete, and concise (2-3 sentences max). Always finish your final sentence completely.
+3. Keep answers ultra-concise (1 sentence, 15-20 words max).
 
 FORMAT:
 - If Indic language ({language}):
@@ -114,7 +113,7 @@ FORMAT:
   🔤 **Pronunciation:** [Short Romanized phonetics]
   🌐 **English Translation:** [Clear English translation]
 - If English:
-  [Direct, complete answer] [Source: ...]"""
+  [Direct 1-sentence answer] [Source: ...]"""
 
 USER_PROMPT_TEMPLATE = """{history_context}Context:
 {context}
