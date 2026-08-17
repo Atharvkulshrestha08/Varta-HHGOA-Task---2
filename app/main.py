@@ -20,6 +20,7 @@ The server initializes all pipeline components at startup:
 """
 
 import os
+import asyncio
 import logging
 import time
 from pathlib import Path

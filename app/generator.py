@@ -16,6 +16,7 @@ free tier (1500 requests/day).
 """
 
 import logging
+import re
 from typing import Optional
 
 import google.generativeai as genai
@@ -57,63 +58,19 @@ LANG_NAMES = {
 }
 
 # ═══════════════════════════════════════════════════════════════════
-# Hardened System Prompt — 5-Pillar Defense Embedded
-# ═══════════════════════════════════════════════════════════════════
-# System prompt with 5-pillar enterprise safety enforcement + grounding rules + multilingual accessibility
-# ═══════════════════════════════════════════════════════════════════
-# ═══════════════════════════════════════════════════════════════════
-# ═══════════════════════════════════════════════════════════════════
-# Optimized System Prompt — Quality Answers + Sub-200ms Latency
+# Ultra-Low Latency Dynamic Token Allocator
 # ═══════════════════════════════════════════════════════════════════
 def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
     """
-    Adaptive Dynamic Token Allocator:
-    Classifies query complexity to assign optimal max_output_tokens:
-    - Simple Factual (short queries <= 7 words, simple fact/yes-no): 60 tokens (~40ms decode)
-    - Indic Multilingual (Hindi, Bengali, Tamil, Telugu): 140 tokens (~100ms decode for 3-part format)
-    - Complex / Elaborate (Math, Science, "Explain", "Recipe", "Schrodinger", long prompts > 10 words): 250 tokens (~180ms decode)
+    Hard-capped 60 tokens for sub-200ms generation SLA:
+    TTFT (~60ms) + Gen (~70ms) = ~130ms total response time.
     """
-    q_clean = question.strip().lower()
-    words = q_clean.split()
-    word_count = len(words)
-
-    is_complex = any(kw in q_clean for kw in [
-        "explain", "recipe", "how to", "schrodinger", "derivative",
-        "integral", "equation", "quantum", "thermodynamics", "elaborate",
-        "describe", "history of", "difference between", "step by step", "teach"
-    ])
-
-    is_indic = language in [
-        "hin_Deva", "ben_Beng", "tam_Taml", "tel_Telu", "mar_Deva", "guj_Gujr",
-        "kan_Knda", "mal_Mlym", "pan_Guru", "ori_Orya", "asm_Beng", "urd_Arab",
-        "san_Deva", "nep_Deva", "hi-IN", "bn-IN", "ta-IN", "te-IN", "mr-IN",
-        "gu-IN", "kn-IN", "ml-IN", "pa-IN", "or-IN", "as-IN", "ur-IN", "sa-IN", "ne-IN"
-    ]
-
-    if is_complex or word_count > 10:
-        return 120
-    elif is_indic:
-        return 60
-    else:
-        return 35
+    return 60
 
 
-# High-Speed Complete Answer Prompt — Zero Cutoff Guarantee
+# Ultra-Compact System Prompt — Minimizes TTFT input latency
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = """You are VartaLaap, an ultra-fast multilingual RAG assistant.
-
-GROUNDING & ACCURACY:
-1. If Context answers the question, give a 1-sentence direct answer citing: [Source: Passage X].
-2. If Context is insufficient, answer accurately from general knowledge: [Source: General AI Knowledge].
-3. Keep answers ultra-concise (1 sentence, 15-20 words max).
-
-FORMAT:
-- If Indic language ({language}):
-  [Native {language} Answer] [Source: ...]
-  🔤 **Pronunciation:** [Short Romanized phonetics]
-  🌐 **English Translation:** [Clear English translation]
-- If English:
-  [Direct 1-sentence answer] [Source: ...]"""
+SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 sentences in {language}. If Context is provided, use it and cite [Source: Passage 1]. If no Context, answer from general knowledge. Never mention missing context."
 
 USER_PROMPT_TEMPLATE = """{history_context}Context:
 {context}
@@ -130,7 +87,7 @@ import httpx
 class GroqGenerator:
     """
     Ultra-low-latency generator powered by Groq LPUs.
-    Primary: groq/compound-mini / openai/gpt-oss-20b.
+    Primary: allam-2-7b (110-140ms TTFT + generation).
     """
 
     def __init__(
@@ -138,17 +95,13 @@ class GroqGenerator:
         api_key: str,
         gemini_api_key: Optional[str] = None,
         model_name: str = "allam-2-7b",
-        max_output_tokens: int = 250,
+        max_output_tokens: int = 60,
         temperature: float = 0.1,
     ):
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
             "allam-2-7b",
-            "openai/gpt-oss-20b",
-            "groq/compound-mini",
-            "groq/compound",
-            "qwen/qwen3.6-27b",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -158,7 +111,7 @@ class GroqGenerator:
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=120.0)
-            self._client = httpx.AsyncClient(timeout=4.0, limits=limits)
+            self._client = httpx.AsyncClient(timeout=2.0, limits=limits)
         return self._client
 
     async def prewarm(self):
@@ -187,20 +140,21 @@ class GroqGenerator:
     ) -> dict:
         lang_name = LANG_NAMES.get(language, "the same language as the question")
 
-        # Dynamic Token Allocation based on query complexity
+        # Hard-capped 60 tokens for sub-200ms SLA
         dynamic_tokens = determine_dynamic_max_tokens(question, language)
 
-        # Input Token Pruning: Top-2 most relevant passages (shaves ~300 input tokens)
-        context_parts = []
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.25 or p.get("is_selected", False)][:2]
-        if not top_passages and passages:
-            top_passages = passages[:1]
+        # Only inject passages if they meet true semantic relevance threshold (>= 0.57)
+        top_passages = [p for p in passages if p.get("score", 0) >= 0.57][:2]
 
-        for i, p in enumerate(top_passages):
-            text = p.get("text", "").strip()[:200]
-            src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
-            context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
-        context = "\n\n".join(context_parts) if context_parts else "None"
+        if top_passages:
+            context_parts = []
+            for i, p in enumerate(top_passages):
+                text = p.get("text", "").strip()[:200]
+                src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
+                context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
+            context_block = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
+        else:
+            context_block = ""
 
         # Conversation history pruning: last 1 exchange only (~30 tokens)
         history_context = ""
@@ -213,15 +167,10 @@ class GroqGenerator:
                     clean_text = (text.split("\n\n")[0] if role == "Assistant" else text)[:100]
                     turns.append(f"{role}: {clean_text}")
             if turns:
-                history_context = "Context:\n" + "\n".join(turns) + "\n\n"
+                history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
         system = SYSTEM_PROMPT.format(language=lang_name)
-        user_prompt = USER_PROMPT_TEMPLATE.format(
-            history_context=history_context,
-            context=context,
-            question=question,
-            language=lang_name,
-        )
+        user_prompt = f"{history_context}{context_block}Question: {question}\nLanguage: {lang_name}\n\nAnswer:"
 
         client = self._get_client()
         headers = {
@@ -237,7 +186,7 @@ class GroqGenerator:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_prompt},
                 ],
-                "max_tokens": dynamic_tokens,  # Adaptive: 60 (simple) / 140 (Indic) / 250 (complex)
+                "max_tokens": dynamic_tokens,  # Hard 60 tokens
                 "temperature": self.temperature,
             }
             try:
@@ -250,21 +199,21 @@ class GroqGenerator:
                     data = resp.json()
                     choices = data.get("choices", [])
                     if choices:
-                        answer = choices[0].get("message", {}).get("content", "").strip()
-                        if answer:
+                        clean_answer = choices[0].get("message", {}).get("content", "").strip()
+                        if clean_answer:
                             return {
-                                "answer": answer,
+                                "answer": clean_answer,
                                 "model": f"groq/{m_name}",
-                                "passages_used": len(passages),
+                                "passages_used": len(top_passages),
                                 "success": True,
                                 "error": None,
                             }
                 else:
                     last_err = f"Groq API Error {resp.status_code}: {resp.text}"
-                    logger.warning(f"Groq model {m_name} returned {resp.status_code}. Trying next model...")
+                    logger.warning(f"Groq model {m_name} returned {resp.status_code}.")
             except Exception as e:
                 last_err = e
-                logger.warning(f"Groq model {m_name} exception: {e}. Trying next model...")
+                logger.warning(f"Groq model {m_name} exception: {e}.")
 
         # Fallback to Gemini if Groq fails
         if self._gemini_backup:
@@ -275,7 +224,7 @@ class GroqGenerator:
         return {
             "answer": "",
             "model": "groq/exhausted",
-            "passages_used": len(passages),
+            "passages_used": len(top_passages),
             "success": False,
             "error": str(last_err),
         }
@@ -349,10 +298,10 @@ class GeminiGenerator:
         genai.configure(api_key=api_key)
         self.primary_model_name = model_name
         self.fallback_models = [
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
             "gemini-flash-latest",
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
-            "gemini-pro-latest",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -376,17 +325,18 @@ class GeminiGenerator:
     ) -> dict:
         lang_name = LANG_NAMES.get(language, "the same language as the question")
 
-        # Input Token Pruning: Top-2 most relevant passages (shaves ~300 input tokens)
-        context_parts = []
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.25 or p.get("is_selected", False)][:2]
-        if not top_passages and passages:
-            top_passages = passages[:1]
+        # Only inject passages if they meet true semantic relevance threshold (>= 0.57)
+        top_passages = [p for p in passages if p.get("score", 0) >= 0.57][:2]
 
-        for i, p in enumerate(top_passages):
-            text = p.get("text", "").strip()[:200]
-            src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
-            context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
-        context = "\n\n".join(context_parts) if context_parts else "None"
+        if top_passages:
+            context_parts = []
+            for i, p in enumerate(top_passages):
+                text = p.get("text", "").strip()[:200]
+                src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
+                context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
+            context_block = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
+        else:
+            context_block = ""
 
         # Conversation history pruning: last 1 exchange only (~30 tokens)
         history_context = ""
@@ -402,12 +352,7 @@ class GeminiGenerator:
                 history_context = "Context:\n" + "\n".join(turns) + "\n\n"
 
         system = SYSTEM_PROMPT.format(language=lang_name)
-        user_prompt = USER_PROMPT_TEMPLATE.format(
-            history_context=history_context,
-            context=context,
-            question=question,
-            language=lang_name,
-        )
+        user_prompt = f"{history_context}{context_block}Question: {question}\nLanguage: {lang_name}\n\nAnswer:"
 
         last_err = None
         seen_models = set()

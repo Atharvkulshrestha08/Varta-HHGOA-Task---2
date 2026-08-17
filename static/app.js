@@ -30,78 +30,17 @@ const state = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// Regional Linguistic Clusters Configuration
+// Supported Multilingual Configuration (5 Core Languages + Auto)
 // ═══════════════════════════════════════════════════════════════
 
-const ZONE_DATA = {
-    zone_south: {
-        name: 'South Zone',
-        languages: [
-            { code: 'auto', label: '🌐 Auto (South Zone)' },
-            { code: 'ta-IN', label: '🇮🇳 தமிழ் (Tamil)' },
-            { code: 'te-IN', label: '🇮🇳 తెలుగు (Telugu)' },
-            { code: 'kn-IN', label: '🇮🇳 ಕನ್ನಡ (Kannada)' },
-            { code: 'ml-IN', label: '🇮🇳 മലയാളം (Malayalam)' },
-            { code: 'kok-IN', label: '🇮🇳 कोंकणी (Goa)' },
-            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
-            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
-        ]
-    },
-    zone_north: {
-        name: 'North Zone',
-        languages: [
-            { code: 'auto', label: '🌐 Auto (North Zone)' },
-            { code: 'hi-IN', label: '🇮🇳 हिन्दी (Hindi)' },
-            { code: 'pa-IN', label: '🇮🇳 ਪੰਜਾਬੀ (Punjabi)' },
-            { code: 'ur-IN', label: '🇮🇳 اردو (Urdu)' },
-            { code: 'sa-IN', label: '🇮🇳 संस्कृतम् (Sanskrit)' },
-            { code: 'ne-IN', label: '🇮🇳 नेपाली (Nepali)' },
-            { code: 'mai-IN', label: '🇮🇳 मैथिली (Maithili)' },
-            { code: 'ks-IN', label: '🇮🇳 کٲشُر (Kashmiri)' },
-            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
-        ]
-    },
-    zone_west: {
-        name: 'West Zone',
-        languages: [
-            { code: 'auto', label: '🌐 Auto (West Zone)' },
-            { code: 'mr-IN', label: '🇮🇳 मराठी (Marathi)' },
-            { code: 'gu-IN', label: '🇮🇳 ગુજરાતી (Gujarati)' },
-            { code: 'kok-IN', label: '🇮🇳 कोंकणी (Konkani)' },
-            { code: 'sd-IN', label: '🇮🇳 سنڌي (Sindhi)' },
-            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
-            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
-        ]
-    },
-    zone_east: {
-        name: 'East Zone',
-        languages: [
-            { code: 'auto', label: '🌐 Auto (East Zone)' },
-            { code: 'bn-IN', label: '🇮🇳 বাংলা (Bengali)' },
-            { code: 'as-IN', label: '🇮🇳 অসমীয়া (Assamese)' },
-            { code: 'or-IN', label: '🇮🇳 ଓଡ଼ିଆ (Odia)' },
-            { code: 'mni-IN', label: '🇮🇳 মৈতৈলোন্ (Manipuri)' },
-            { code: 'brx-IN', label: '🇮🇳 बड़ो (Bodo)' },
-            { code: 'hi-IN', label: '🔒 हिन्दी (Anchor)', isAnchor: true },
-            { code: 'en-IN', label: '🔒 English (Anchor)', isAnchor: true },
-        ]
-    },
-    zone_all: {
-        name: 'All India (22 Languages)',
-        languages: [
-            { code: 'auto', label: '🌐 Auto (All 22 Languages)' },
-            { code: 'hi-IN', label: '🇮🇳 हिन्दी' },
-            { code: 'bn-IN', label: '🇮🇳 বাংলা' },
-            { code: 'ta-IN', label: '🇮🇳 தமிழ்' },
-            { code: 'te-IN', label: '🇮🇳 తెలుగు' },
-            { code: 'mr-IN', label: '🇮🇳 मराठी' },
-            { code: 'gu-IN', label: '🇮🇳 ગુજરાતી' },
-            { code: 'kn-IN', label: '🇮🇳 ಕನ್ನಡ' },
-            { code: 'ml-IN', label: '🇮🇳 മലയാളം' },
-            { code: 'en-IN', label: '🇬🇧 English' },
-        ]
-    }
-};
+const SUPPORTED_LANGUAGES = [
+    { code: 'auto', label: '🌐 Auto-Detect' },
+    { code: 'hi-IN', label: '🇮🇳 हिन्दी (Hindi)' },
+    { code: 'bn-IN', label: '🇮🇳 বাংলা (Bengali)' },
+    { code: 'ta-IN', label: '🇮🇳 தமிழ் (Tamil)' },
+    { code: 'te-IN', label: '🇮🇳 తెలుగు (Telugu)' },
+    { code: 'en-IN', label: '🇬🇧 English' },
+];
 
 // ═══════════════════════════════════════════════════════════════
 // DOM Elements
@@ -153,58 +92,35 @@ const els = {
 // ═══════════════════════════════════════════════════════════════
 
 function renderZonalLanguages(zoneKey) {
-    const zoneConfig = ZONE_DATA[zoneKey] || ZONE_DATA['zone_all'];
+function renderLanguages() {
     if (!els.languageSelector) return;
 
-    // Check if previously selected language exists in this zone, otherwise default to auto
-    const langExists = zoneConfig.languages.some(l => l.code === state.selectedLanguage);
+    // Check if previously selected language exists in supported list
+    const langExists = SUPPORTED_LANGUAGES.some(l => l.code === state.selectedLanguage);
     if (!langExists) {
         state.selectedLanguage = 'auto';
         localStorage.setItem('varta_lang', 'auto');
     }
 
-    els.languageSelector.innerHTML = zoneConfig.languages.map(lang => {
+    els.languageSelector.innerHTML = SUPPORTED_LANGUAGES.map(lang => {
         const isActive = state.selectedLanguage === lang.code ? 'active' : '';
-        const isAnchor = lang.isAnchor ? 'anchor-lang' : '';
-        return `<button class="lang-btn ${isActive} ${isAnchor}" data-lang="${lang.code}" type="button">${lang.label}</button>`;
+        return `<button class="lang-btn ${isActive}" data-lang="${lang.code}" type="button">${lang.label}</button>`;
     }).join('');
 
-    // Re-attach click listeners to generated language buttons
+    // Attach click listeners to generated language buttons
     els.languageSelector.querySelectorAll('.lang-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             els.languageSelector.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             state.selectedLanguage = btn.dataset.lang;
             localStorage.setItem('varta_lang', state.selectedLanguage);
-            console.log('[ZONE] Selected language:', state.selectedLanguage, 'in zone:', state.selectedZone);
+            console.log('[LANG] Selected language:', state.selectedLanguage);
         });
     });
 }
 
-// Attach Zone Tab Click Listeners and restore saved tab
-if (els.zonalTabs) {
-    els.zonalTabs.querySelectorAll('.zone-tab').forEach(tab => {
-        if (tab.dataset.zone === state.selectedZone) {
-            tab.classList.add('active');
-        } else {
-            tab.classList.remove('active');
-        }
-
-        tab.addEventListener('click', () => {
-            els.zonalTabs.querySelectorAll('.zone-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            state.selectedZone = tab.dataset.zone;
-            state.selectedLanguage = 'auto';
-            localStorage.setItem('varta_zone', state.selectedZone);
-            localStorage.setItem('varta_lang', state.selectedLanguage);
-            renderZonalLanguages(state.selectedZone);
-            console.log('[ZONE] Switched to zone:', state.selectedZone);
-        });
-    });
-}
-
-// Initial render for active Zone
-renderZonalLanguages(state.selectedZone);
+// Initial render for active languages
+renderLanguages();
 
 // ═══════════════════════════════════════════════════════════════
 // Voice Recording
@@ -886,30 +802,26 @@ function setupHITLFeedback(queryId, queryText, answerText) {
 }
 
 async function submitHITL(rating) {
-    if (!currentQueryId) return;
+    const qId = currentQueryId || ('q_' + Date.now());
     const hitlStatus = $('hitl-status');
-    if (hitlStatus) hitlStatus.textContent = "Saving...";
+    if (hitlStatus) {
+        hitlStatus.textContent = rating === 'up' ? '✅ Thank you! Flagged as accurate.' : '⚠️ Thank you! Flagged for review.';
+    }
 
     try {
-        const response = await fetch('/api/feedback', {
+        await fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                query_id: currentQueryId,
+                query_id: qId,
                 rating: rating,
-                query_text: currentQueryText,
-                answer_text: currentAnswerText,
+                query_text: currentQueryText || (els.queryDisplay ? els.queryDisplay.textContent : ''),
+                answer_text: currentAnswerText || (els.answerText ? els.answerText.textContent : ''),
             }),
         });
-
-        const res = await response.json();
-        if (hitlStatus) {
-            hitlStatus.textContent = rating === 'up' ? '✅ Thank you! Flagged as helpful.' : '⚠️ Thank you! Flagged for review.';
-        }
-        trackTelemetry('hitl_feedback', { rating, query_id: currentQueryId });
+        trackTelemetry('hitl_feedback', { rating, query_id: qId });
     } catch (err) {
-        console.error('HITL feedback error:', err);
-        if (hitlStatus) hitlStatus.textContent = "Failed to send rating.";
+        console.warn('HITL feedback sync notice:', err);
     }
 }
 
