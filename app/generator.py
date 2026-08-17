@@ -63,15 +63,41 @@ LANG_NAMES = {
 def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
     """
     Allocates tokens dynamically:
-    - Indic scripts (Hindi, Tamil, Bengali, Telugu) require ~95 tokens to avoid mid-sentence cut-off.
-    - English queries complete 1-2 sentences in 65 tokens for ultra-fast 115ms latency.
+    - Explanatory / Complex queries ('explain', 'quantum', 'five year old', 'why', 'how'): 130 tokens (~145ms).
+    - Indic scripts (Hindi, Tamil, Bengali, Telugu): 130 tokens (~150ms).
+    - Fact / Trivia queries: 85 tokens (~120ms).
     """
+    q_clean = question.strip().lower()
+    words = q_clean.split()
+
     is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
         k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
     )
-    if is_indic:
-        return 95
-    return 65
+
+    is_complex = any(kw in q_clean for kw in [
+        "explain", "recipe", "how to", "schrodinger", "derivative",
+        "integral", "equation", "quantum", "thermodynamics", "elaborate",
+        "describe", "history of", "difference between", "step by step", "teach",
+        "list", "five year old", "5 year old", "for kids", "why", "how does", "what is the difference", "tell me about"
+    ]) or len(words) > 7
+
+    if is_indic or is_complex:
+        return 130
+    return 85
+
+
+def clean_and_complete_answer(text: str) -> str:
+    """Ensures answers end on clean sentence boundaries without dangling half-sentences."""
+    text = text.strip()
+    if not text:
+        return text
+    if text[-1] in ".!?।॥\"')":
+        return text
+    for punc in [".", "!", "?", "।", "॥"]:
+        last_idx = text.rfind(punc)
+        if last_idx > 40:
+            return text[:last_idx + 1].strip()
+    return text
 
 
 # Ultra-Compact System Prompt
@@ -205,7 +231,8 @@ class GroqGenerator:
                     data = resp.json()
                     choices = data.get("choices", [])
                     if choices:
-                        clean_answer = choices[0].get("message", {}).get("content", "").strip()
+                        raw_answer = choices[0].get("message", {}).get("content", "").strip()
+                        clean_answer = clean_and_complete_answer(raw_answer)
                         if clean_answer:
                             return {
                                 "answer": clean_answer,
