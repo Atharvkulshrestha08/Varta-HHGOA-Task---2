@@ -30,7 +30,13 @@ _SentenceTransformer = None
 def _get_faiss():
     global _faiss
     if _faiss is None:
+        import os
         import faiss
+        # Multi-threaded CPU OpenMP optimization (utilize 100% of CPU cores)
+        try:
+            faiss.omp_set_num_threads(os.cpu_count() or 8)
+        except Exception:
+            pass
         _faiss = faiss
     return _faiss
 
@@ -38,43 +44,82 @@ def _get_faiss():
 def _get_sentence_transformer():
     global _SentenceTransformer
     if _SentenceTransformer is None:
-        import hashlib
-        class MultilingualDeterministicEmbedder:
-            def __init__(self, model_name=None):
-                logger.info("Initialized 0-latency MultilingualDeterministicEmbedder.")
+        try:
+            import torch
+            from sentence_transformers import SentenceTransformer
+            
+            # NVIDIA RTX 4050 GPU Optimization
+            if torch.cuda.is_available():
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True
+                device = "cuda"
+                logger.info(f"[GPU ACCELERATED] Enabled NVIDIA CUDA on {torch.cuda.get_device_name(0)} (FP16 Tensor Cores)")
+            else:
+                device = "cpu"
+                logger.info("[CPU ACCELERATED] Running on multi-core CPU")
 
-            def encode(self, sentences, batch_size=32, show_progress_bar=False,
-                       convert_to_numpy=True, normalize_embeddings=True, **kwargs):
-                import numpy as np
-                if isinstance(sentences, str):
-                    sentences = [sentences]
-                all_embeddings = []
-                for s in sentences:
-                    vec = [0.0] * 384
-                    text = s.lower().strip()
-                    # 1. Word tokens
-                    words = text.split()
-                    for w in words:
-                        h = int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16)
-                        idx = h % 384
-                        vec[idx] += 2.0
+            class GPUSentenceTransformerWrapper:
+                def __init__(self, model_name="paraphrase-multilingual-MiniLM-L12-v2"):
+                    self.device = device
+                    self.raw_model = SentenceTransformer(model_name, device=device)
+                    if device == "cuda":
+                        self.raw_model = self.raw_model.half()  # FP16 for 2x faster Tensor Core inference
+                    # Warm up GPU
+                    _ = self.raw_model.encode(["warmup query"], convert_to_numpy=True)
 
-                    # 2. Character 3-grams & 4-grams (essential for Indic script alignment)
-                    for n in (3, 4):
-                        for i in range(len(text) - n + 1):
-                            ngram = text[i:i+n]
-                            h = int(hashlib.md5(ngram.encode('utf-8')).hexdigest(), 16)
+                def encode(self, sentences, batch_size=32, show_progress_bar=False,
+                           convert_to_numpy=True, normalize_embeddings=True, **kwargs):
+                    if isinstance(sentences, str):
+                        sentences = [sentences]
+                    return self.raw_model.encode(
+                        sentences,
+                        batch_size=batch_size,
+                        show_progress_bar=show_progress_bar,
+                        convert_to_numpy=convert_to_numpy,
+                        normalize_embeddings=normalize_embeddings,
+                        **kwargs
+                    )
+
+            _SentenceTransformer = GPUSentenceTransformerWrapper
+        except Exception as e:
+            logger.warning(f"Could not initialize PyTorch GPU embedder ({e}), using feature-hashing fallback.")
+            import hashlib
+            class MultilingualDeterministicEmbedder:
+                def __init__(self, model_name=None):
+                    logger.info("Initialized 0-latency MultilingualDeterministicEmbedder.")
+
+                def encode(self, sentences, batch_size=32, show_progress_bar=False,
+                           convert_to_numpy=True, normalize_embeddings=True, **kwargs):
+                    import numpy as np
+                    if isinstance(sentences, str):
+                        sentences = [sentences]
+                    all_embeddings = []
+                    for s in sentences:
+                        vec = [0.0] * 384
+                        text = s.lower().strip()
+                        # 1. Word tokens
+                        words = text.split()
+                        for w in words:
+                            h = int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16)
                             idx = h % 384
-                            vec[idx] += 1.0
+                            vec[idx] += 2.0
 
-                    all_embeddings.append(vec)
+                        # 2. Character 3-grams & 4-grams (essential for Indic script alignment)
+                        for n in (3, 4):
+                            for i in range(len(text) - n + 1):
+                                ngram = text[i:i+n]
+                                h = int(hashlib.md5(ngram.encode('utf-8')).hexdigest(), 16)
+                                idx = h % 384
+                                vec[idx] += 1.0
 
-                emb = np.array(all_embeddings, dtype=np.float32)
-                norms = np.linalg.norm(emb, axis=1, keepdims=True)
-                norms = np.where(norms == 0, 1, norms)
-                return emb / norms
+                        all_embeddings.append(vec)
 
-        _SentenceTransformer = MultilingualDeterministicEmbedder
+                    emb = np.array(all_embeddings, dtype=np.float32)
+                    norms = np.linalg.norm(emb, axis=1, keepdims=True)
+                    norms = np.where(norms == 0, 1, norms)
+                    return emb / norms
+
+            _SentenceTransformer = MultilingualDeterministicEmbedder
     return _SentenceTransformer
 
 
@@ -225,36 +270,41 @@ class VectorStore:
         query_vector: np.ndarray,
         top_k: int = 5,
         score_threshold: float = 0.0,
+        allowed_languages: Optional[set[str]] = None,
     ) -> list[dict]:
         """
-        Search the index for the top-K most similar chunks.
+        Search the index for the top-K most similar chunks with partition routing.
 
         Args:
             query_vector: (1, 384) numpy array
             top_k: Number of results to return
             score_threshold: Minimum similarity score (0-1)
+            allowed_languages: Optional set of language partition codes (e.g. {'tam_Taml', 'eng_Latn'})
 
-        Returns list of dicts, each with:
-        - All original chunk metadata
-        - score: cosine similarity score
-        - rank: position in results (0-indexed)
+        Returns list of dicts with chunk metadata, score, and rank.
         """
         if self._index is None:
             raise RuntimeError("Index not built. Call build_index() first.")
 
         query_vector = np.ascontiguousarray(query_vector, dtype=np.float32)
-        scores, indices = self._index.search(query_vector, top_k)
+        fetch_k = top_k * 4 if allowed_languages else top_k
+        scores, indices = self._index.search(query_vector, fetch_k)
 
         results = []
-        for rank, (score, idx) in enumerate(zip(scores[0], indices[0])):
+        for (score, idx) in zip(scores[0], indices[0]):
             if idx < 0:  # FAISS returns -1 for empty slots
                 continue
             if score < score_threshold:
                 continue
-            result = dict(self._chunks_metadata[idx])
+            meta = self._chunks_metadata[idx]
+            if allowed_languages and meta.get("language") not in allowed_languages:
+                continue
+            result = dict(meta)
             result["score"] = float(score)
-            result["rank"] = rank
+            result["rank"] = len(results)
             results.append(result)
+            if len(results) >= top_k:
+                break
 
         return results
 

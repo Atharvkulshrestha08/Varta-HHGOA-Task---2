@@ -184,8 +184,7 @@ class SarvamSTTClient:
             }
 
             data = {
-                "model": "saaras:v3",
-                "mode": "transcribe",
+                "model": "saarika:v2.5",
             }
             if effective_lang and effective_lang != "unknown":
                 data["language_code"] = effective_lang

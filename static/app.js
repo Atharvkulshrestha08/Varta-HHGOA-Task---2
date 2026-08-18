@@ -30,16 +30,14 @@ const state = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// Supported Multilingual Configuration (5 Core Languages + Auto)
+// Supported Multilingual Configuration (3 Core Languages + Auto)
 // ═══════════════════════════════════════════════════════════════
 
 const SUPPORTED_LANGUAGES = [
     { code: 'auto', label: '🌐 Auto-Detect' },
-    { code: 'hi-IN', label: '🇮🇳 हिन्दी (Hindi)' },
-    { code: 'bn-IN', label: '🇮🇳 বাংলা (Bengali)' },
-    { code: 'ta-IN', label: '🇮🇳 தமிழ் (Tamil)' },
-    { code: 'te-IN', label: '🇮🇳 తెలుగు (Telugu)' },
     { code: 'en-IN', label: '🇬🇧 English' },
+    { code: 'hi-IN', label: '🇮🇳 हिन्दी (Hindi)' },
+    { code: 'ta-IN', label: '🌴 தமிழ் (Tamil)' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -571,6 +569,11 @@ function renderAnswer(data) {
         `;
     }
 
+    // Speak answer aloud with SpeechSynthesis
+    if (data.answer && !data.is_fallback) {
+        speakAnswerText(data.answer, data.language);
+    }
+
     // Setup HITL Feedback buttons for this query
     if (typeof setupHITLFeedback === 'function') {
         setupHITLFeedback(data.query_id || ('q_' + Date.now()), data.original_query || '', data.answer || '');
@@ -581,6 +584,27 @@ function renderAnswer(data) {
 
     // Scroll to answer
     els.answerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function speakAnswerText(text, lang) {
+    if (!('speechSynthesis' in window) || !text) return;
+    try {
+        window.speechSynthesis.cancel();
+        // Extract first clean sentence for immediate low-latency playback
+        const cleanText = text.replace(/\[Source:[^\]]*\]/gi, '').trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        if (lang && (lang.includes('hi') || lang.includes('Deva'))) {
+            utterance.lang = 'hi-IN';
+        } else if (lang && (lang.includes('ta') || lang.includes('Taml'))) {
+            utterance.lang = 'ta-IN';
+        } else {
+            utterance.lang = 'en-US';
+        }
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+    } catch (e) {
+        console.warn('Speech synthesis playback error:', e);
+    }
 }
 
 function renderChatThread() {

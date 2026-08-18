@@ -1,816 +1,369 @@
 {
   "config": {
-    "num_queries": 50,
-    "total_vectors": 105
+    "num_queries": 25,
+    "total_vectors": 48000
   },
   "summary": {
-    "p50_ms": 0.17,
-    "p70_ms": 0.22,
-    "p100_ms": 2.04,
-    "mean_ms": 0.23,
-    "min_ms": 0.12,
+    "p50_ms": 179.64,
+    "p70_ms": 194.54,
+    "p100_ms": 515.3,
+    "mean_ms": 169.61,
+    "min_ms": 0.08,
     "target_200ms_met": true
   },
   "per_stage": {
     "guardrails_input": {
-      "p50": 0.03,
-      "p70": 0.04,
-      "p100": 0.07,
-      "mean": 0.03,
-      "min": 0.02,
-      "count": 50
+      "p50": 0.09,
+      "p70": 0.09,
+      "p100": 0.44,
+      "mean": 0.11,
+      "min": 0.05,
+      "count": 25
     },
     "embedding": {
-      "p50": 0.0,
-      "p70": 0.07,
-      "p100": 1.14,
-      "mean": 0.06,
+      "p50": 0.26,
+      "p70": 0.3,
+      "p100": 1.1,
+      "mean": 0.28,
       "min": 0.0,
-      "count": 50
+      "count": 25
     },
     "retrieval": {
-      "p50": 0.02,
-      "p70": 0.02,
-      "p100": 0.65,
-      "mean": 0.03,
-      "min": 0.01,
-      "count": 50
-    },
-    "guardrails_retrieval": {
-      "p50": 0.0,
-      "p70": 0.0,
-      "p100": 0.01,
-      "mean": 0.0,
-      "min": 0.0,
-      "count": 50
+      "p50": 1.55,
+      "p70": 2.13,
+      "p100": 3.41,
+      "mean": 1.88,
+      "min": 0.77,
+      "count": 22
     },
     "generation": {
-      "p50": 0.0,
-      "p70": 0.0,
-      "p100": 0.01,
-      "mean": 0.0,
-      "min": 0.0,
-      "count": 50
-    },
-    "guardrails_output": {
-      "p50": 0.09,
-      "p70": 0.1,
-      "p100": 0.15,
-      "mean": 0.1,
-      "min": 0.06,
-      "count": 50
+      "p50": 179.28,
+      "p70": 197.38,
+      "p100": 510.77,
+      "mean": 190.42,
+      "min": 105.81,
+      "count": 22
     }
   },
   "individual_results": [
     {
       "query": "What is the capital of India?",
-      "total_ms": 2.5604,
+      "total_ms": 108.7613,
       "latency_breakdown": {
-        "guardrails_input": 0.0678,
-        "embedding": 1.1438,
-        "retrieval": 0.6545,
-        "guardrails_retrieval": 0.0122,
-        "generation": 0.0105,
-        "guardrails_output": 0.1518
+        "guardrails_input": 0.4428,
+        "embedding": 0.4598,
+        "retrieval": 1.7207,
+        "generation": 105.8103
       },
-      "pipeline_latency_ms": 2.04,
+      "pipeline_latency_ms": 108.43,
       "success": true,
-      "confidence": 0.575
+      "confidence": 0.629
     },
     {
       "query": "How does photosynthesis work?",
-      "total_ms": 0.4733,
+      "total_ms": 126.3081,
       "latency_breakdown": {
-        "guardrails_input": 0.0443,
-        "embedding": 0.1424,
-        "retrieval": 0.0484,
-        "guardrails_retrieval": 0.0071,
-        "generation": 0.0075,
-        "guardrails_output": 0.1475
+        "guardrails_input": 0.0844,
+        "embedding": 0.2562,
+        "retrieval": 1.0558,
+        "generation": 124.564
       },
-      "pipeline_latency_ms": 0.4,
+      "pipeline_latency_ms": 125.96,
       "success": true,
-      "confidence": 0.269
+      "confidence": 0.388
     },
     {
       "query": "What are the symptoms of malaria?",
-      "total_ms": 0.3532,
+      "total_ms": 183.0971,
       "latency_breakdown": {
-        "guardrails_input": 0.0417,
-        "embedding": 0.0951,
-        "retrieval": 0.0229,
-        "guardrails_retrieval": 0.0035,
-        "generation": 0.0029,
-        "guardrails_output": 0.1277
+        "guardrails_input": 0.0803,
+        "embedding": 0.3207,
+        "retrieval": 1.2796,
+        "generation": 181.0726
       },
-      "pipeline_latency_ms": 0.29,
+      "pipeline_latency_ms": 182.75,
       "success": true,
-      "confidence": 0.418
+      "confidence": 0.565
     },
     {
       "query": "Who invented the telephone?",
-      "total_ms": 0.2665,
+      "total_ms": 201.3347,
       "latency_breakdown": {
-        "guardrails_input": 0.0303,
-        "embedding": 0.0801,
-        "retrieval": 0.0211,
-        "guardrails_retrieval": 0.0029,
-        "generation": 0.0026,
-        "guardrails_output": 0.0818
+        "guardrails_input": 0.0518,
+        "embedding": 0.1578,
+        "retrieval": 0.7701,
+        "generation": 200.1503
       },
-      "pipeline_latency_ms": 0.22,
+      "pipeline_latency_ms": 201.13,
       "success": true,
-      "confidence": 0.4
+      "confidence": 0.511
     },
     {
       "query": "What is the population of Mumbai?",
-      "total_ms": 0.2619,
+      "total_ms": 185.8055,
       "latency_breakdown": {
-        "guardrails_input": 0.0388,
-        "embedding": 0.085,
-        "retrieval": 0.0173,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0023,
-        "guardrails_output": 0.0726
+        "guardrails_input": 0.0704,
+        "embedding": 0.2069,
+        "retrieval": 1.4806,
+        "generation": 183.7853
       },
-      "pipeline_latency_ms": 0.22,
+      "pipeline_latency_ms": 185.54,
       "success": true,
-      "confidence": 0.52
+      "confidence": 0.63
     },
     {
       "query": "How is steel manufactured?",
-      "total_ms": 0.2319,
+      "total_ms": 208.2358,
       "latency_breakdown": {
-        "guardrails_input": 0.0297,
-        "embedding": 0.0733,
-        "retrieval": 0.0163,
-        "guardrails_retrieval": 0.0027,
-        "generation": 0.0021,
-        "guardrails_output": 0.0786
+        "guardrails_input": 0.0684,
+        "embedding": 0.236,
+        "retrieval": 1.1514,
+        "generation": 206.4784
       },
-      "pipeline_latency_ms": 0.2,
+      "pipeline_latency_ms": 207.93,
       "success": true,
-      "confidence": 0.274
+      "confidence": 0.396
     },
     {
       "query": "What causes earthquakes?",
-      "total_ms": 0.2644,
+      "total_ms": 220.5904,
       "latency_breakdown": {
-        "guardrails_input": 0.0243,
-        "embedding": 0.0807,
-        "retrieval": 0.0168,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0021,
-        "guardrails_output": 0.1076
+        "guardrails_input": 0.0721,
+        "embedding": 0.2788,
+        "retrieval": 0.8788,
+        "generation": 219.0485
       },
-      "pipeline_latency_ms": 0.23,
-      "success": true,
-      "confidence": 0.266
-    },
-    {
-      "query": "What is the GDP of India?",
-      "total_ms": 0.3077,
-      "latency_breakdown": {
-        "guardrails_input": 0.0309,
-        "embedding": 0.0695,
-        "retrieval": 0.0148,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.0018,
-        "guardrails_output": 0.1379
-      },
-      "pipeline_latency_ms": 0.26,
-      "success": true,
-      "confidence": 0.515
-    },
-    {
-      "query": "How does a computer processor work?",
-      "total_ms": 0.3126,
-      "latency_breakdown": {
-        "guardrails_input": 0.0389,
-        "embedding": 0.0987,
-        "retrieval": 0.0234,
-        "guardrails_retrieval": 0.0033,
-        "generation": 0.0026,
-        "guardrails_output": 0.1111
-      },
-      "pipeline_latency_ms": 0.28,
-      "success": true,
-      "confidence": 0.322
-    },
-    {
-      "query": "What are the benefits of yoga?",
-      "total_ms": 0.5903,
-      "latency_breakdown": {
-        "guardrails_input": 0.0329,
-        "embedding": 0.2783,
-        "retrieval": 0.0727,
-        "guardrails_retrieval": 0.0063,
-        "generation": 0.0049,
-        "guardrails_output": 0.1191
-      },
-      "pipeline_latency_ms": 0.51,
-      "success": true,
-      "confidence": 0.462
-    },
-    {
-      "query": "\u092d\u093e\u0930\u0924 \u0915\u093e \u0938\u092c\u0938\u0947 \u092c\u0921\u093c\u093e \u0936\u0939\u0930 \u0915\u094c\u0928 \u0938\u093e \u0939\u0948?",
-      "total_ms": 0.4905,
-      "latency_breakdown": {
-        "guardrails_input": 0.0538,
-        "embedding": 0.1366,
-        "retrieval": 0.0399,
-        "guardrails_retrieval": 0.0057,
-        "generation": 0.005,
-        "guardrails_output": 0.1525
-      },
-      "pipeline_latency_ms": 0.39,
-      "success": true,
-      "confidence": 0.383
-    },
-    {
-      "query": "\u0938\u0942\u0930\u094d\u092f \u0917\u094d\u0930\u0939\u0923 \u0915\u0948\u0938\u0947 \u0939\u094b\u0924\u093e \u0939\u0948?",
-      "total_ms": 0.3398,
-      "latency_breakdown": {
-        "guardrails_input": 0.0412,
-        "embedding": 0.0932,
-        "retrieval": 0.0278,
-        "guardrails_retrieval": 0.0042,
-        "generation": 0.0036,
-        "guardrails_output": 0.112
-      },
-      "pipeline_latency_ms": 0.28,
-      "success": true,
-      "confidence": 0.284
-    },
-    {
-      "query": "\u092e\u0927\u0941\u092e\u0947\u0939 \u0915\u0947 \u0932\u0915\u094d\u0937\u0923 \u0915\u094d\u092f\u093e \u0939\u0948\u0902?",
-      "total_ms": 0.2725,
-      "latency_breakdown": {
-        "guardrails_input": 0.0374,
-        "embedding": 0.0877,
-        "retrieval": 0.0206,
-        "guardrails_retrieval": 0.0034,
-        "generation": 0.0024,
-        "guardrails_output": 0.0775
-      },
-      "pipeline_latency_ms": 0.23,
-      "success": true,
-      "confidence": 0.286
-    },
-    {
-      "query": "\u092d\u093e\u0930\u0924 \u092e\u0947\u0902 \u0915\u093f\u0924\u0928\u0947 \u0930\u093e\u091c\u094d\u092f \u0939\u0948\u0902?",
-      "total_ms": 0.2971,
-      "latency_breakdown": {
-        "guardrails_input": 0.0368,
-        "embedding": 0.0739,
-        "retrieval": 0.0165,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0021,
-        "guardrails_output": 0.1031
-      },
-      "pipeline_latency_ms": 0.23,
-      "success": true,
-      "confidence": 0.405
-    },
-    {
-      "query": "\u0939\u093f\u092e\u093e\u0932\u092f \u092a\u0930\u094d\u0935\u0924 \u0915\u093f\u0924\u0928\u093e \u090a\u0902\u091a\u093e \u0939\u0948?",
-      "total_ms": 0.2792,
-      "latency_breakdown": {
-        "guardrails_input": 0.0371,
-        "embedding": 0.0815,
-        "retrieval": 0.0214,
-        "guardrails_retrieval": 0.0027,
-        "generation": 0.0026,
-        "guardrails_output": 0.0948
-      },
-      "pipeline_latency_ms": 0.24,
-      "success": true,
-      "confidence": 0.284
-    },
-    {
-      "query": "\u09ad\u09be\u09b0\u09a4\u09c7\u09b0 \u09b0\u09be\u099c\u09a7\u09be\u09a8\u09c0 \u0995\u09bf?",
-      "total_ms": 0.218,
-      "latency_breakdown": {
-        "guardrails_input": 0.0236,
-        "embedding": 0.0598,
-        "retrieval": 0.0169,
-        "guardrails_retrieval": 0.0028,
-        "generation": 0.002,
-        "guardrails_output": 0.0757
-      },
-      "pipeline_latency_ms": 0.18,
-      "success": true,
-      "confidence": 0.302
-    },
-    {
-      "query": "\u09aa\u09c3\u09a5\u09bf\u09ac\u09c0 \u0995\u09bf\u09ad\u09be\u09ac\u09c7 \u0998\u09cb\u09b0\u09c7?",
-      "total_ms": 0.2248,
-      "latency_breakdown": {
-        "guardrails_input": 0.0265,
-        "embedding": 0.0592,
-        "retrieval": 0.016,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0021,
-        "guardrails_output": 0.0868
-      },
-      "pipeline_latency_ms": 0.19,
-      "success": true,
-      "confidence": 0.258
-    },
-    {
-      "query": "\u09a1\u09c7\u0999\u09cd\u0997\u09c1 \u099c\u09cd\u09ac\u09b0\u09c7\u09b0 \u09b2\u0995\u09cd\u09b7\u09a3 \u0995\u09bf?",
-      "total_ms": 0.2368,
-      "latency_breakdown": {
-        "guardrails_input": 0.0322,
-        "embedding": 0.0667,
-        "retrieval": 0.0149,
-        "guardrails_retrieval": 0.0028,
-        "generation": 0.0021,
-        "guardrails_output": 0.0852
-      },
-      "pipeline_latency_ms": 0.2,
-      "success": true,
-      "confidence": 0.257
-    },
-    {
-      "query": "\u0b87\u0ba8\u0bcd\u0ba4\u0bbf\u0baf\u0bbe\u0bb5\u0bbf\u0ba9\u0bcd \u0ba4\u0bb2\u0bc8\u0ba8\u0b95\u0bb0\u0bae\u0bcd \u0b8e\u0ba9\u0bcd\u0ba9?",
-      "total_ms": 0.2617,
-      "latency_breakdown": {
-        "guardrails_input": 0.0348,
-        "embedding": 0.0696,
-        "retrieval": 0.0143,
-        "guardrails_retrieval": 0.0024,
-        "generation": 0.0022,
-        "guardrails_output": 0.0932
-      },
-      "pipeline_latency_ms": 0.22,
+      "pipeline_latency_ms": 220.28,
       "success": true,
       "confidence": 0.43
     },
     {
-      "query": "\u0baa\u0bc2\u0bae\u0bbf \u0b8e\u0baa\u0bcd\u0baa\u0b9f\u0bbf \u0b9a\u0bc1\u0bb4\u0bb2\u0bcd\u0b95\u0bbf\u0bb1\u0ba4\u0bc1?",
-      "total_ms": 0.2772,
-      "latency_breakdown": {
-        "guardrails_input": 0.0319,
-        "embedding": 0.0638,
-        "retrieval": 0.0145,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.002,
-        "guardrails_output": 0.1231
-      },
-      "pipeline_latency_ms": 0.24,
-      "success": true,
-      "confidence": 0.28
-    },
-    {
-      "query": "\u0c2d\u0c3e\u0c30\u0c24\u0c26\u0c47\u0c36 \u0c30\u0c3e\u0c1c\u0c27\u0c3e\u0c28\u0c3f \u0c0f\u0c2e\u0c3f\u0c1f\u0c3f?",
-      "total_ms": 0.267,
-      "latency_breakdown": {
-        "guardrails_input": 0.0337,
-        "embedding": 0.0732,
-        "retrieval": 0.0205,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0027,
-        "guardrails_output": 0.0907
-      },
-      "pipeline_latency_ms": 0.22,
-      "success": true,
-      "confidence": 0.345
-    },
-    {
-      "query": "\u0c2d\u0c42\u0c2e\u0c3f \u0c0e\u0c32\u0c3e \u0c24\u0c3f\u0c30\u0c41\u0c17\u0c41\u0c24\u0c41\u0c02\u0c26\u0c3f?",
-      "total_ms": 0.2659,
-      "latency_breakdown": {
-        "guardrails_input": 0.0288,
-        "embedding": 0.075,
-        "retrieval": 0.0219,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0024,
-        "guardrails_output": 0.0956
-      },
-      "pipeline_latency_ms": 0.23,
-      "success": true,
-      "confidence": 0.243
-    },
-    {
-      "query": "What is the capital of India?",
-      "total_ms": 0.1685,
-      "latency_breakdown": {
-        "guardrails_input": 0.0396,
-        "embedding": 0.001,
-        "retrieval": 0.0163,
-        "guardrails_retrieval": 0.0022,
-        "generation": 0.002,
-        "guardrails_output": 0.0647
-      },
-      "pipeline_latency_ms": 0.13,
-      "success": true,
-      "confidence": 0.575
-    },
-    {
-      "query": "How does photosynthesis work?",
-      "total_ms": 0.173,
-      "latency_breakdown": {
-        "guardrails_input": 0.0291,
-        "embedding": 0.0009,
-        "retrieval": 0.0142,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.0018,
-        "guardrails_output": 0.0977
-      },
-      "pipeline_latency_ms": 0.15,
-      "success": true,
-      "confidence": 0.269
-    },
-    {
-      "query": "What are the symptoms of malaria?",
-      "total_ms": 0.1851,
-      "latency_breakdown": {
-        "guardrails_input": 0.0346,
-        "embedding": 0.0005,
-        "retrieval": 0.0144,
-        "guardrails_retrieval": 0.0021,
-        "generation": 0.0018,
-        "guardrails_output": 0.0973
-      },
-      "pipeline_latency_ms": 0.15,
-      "success": true,
-      "confidence": 0.418
-    },
-    {
-      "query": "Who invented the telephone?",
-      "total_ms": 0.1536,
-      "latency_breakdown": {
-        "guardrails_input": 0.0269,
-        "embedding": 0.0004,
-        "retrieval": 0.015,
-        "guardrails_retrieval": 0.0021,
-        "generation": 0.0018,
-        "guardrails_output": 0.072
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.4
-    },
-    {
-      "query": "What is the population of Mumbai?",
-      "total_ms": 0.1561,
-      "latency_breakdown": {
-        "guardrails_input": 0.0373,
-        "embedding": 0.0005,
-        "retrieval": 0.0164,
-        "guardrails_retrieval": 0.0019,
-        "generation": 0.0018,
-        "guardrails_output": 0.062
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.52
-    },
-    {
-      "query": "How is steel manufactured?",
-      "total_ms": 0.1438,
-      "latency_breakdown": {
-        "guardrails_input": 0.0278,
-        "embedding": 0.0005,
-        "retrieval": 0.0148,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0017,
-        "guardrails_output": 0.0719
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.274
-    },
-    {
-      "query": "What causes earthquakes?",
-      "total_ms": 0.1681,
-      "latency_breakdown": {
-        "guardrails_input": 0.0226,
-        "embedding": 0.0004,
-        "retrieval": 0.0143,
-        "guardrails_retrieval": 0.0019,
-        "generation": 0.002,
-        "guardrails_output": 0.1019
-      },
-      "pipeline_latency_ms": 0.14,
-      "success": true,
-      "confidence": 0.266
-    },
-    {
       "query": "What is the GDP of India?",
-      "total_ms": 0.1532,
+      "total_ms": 221.5991,
       "latency_breakdown": {
-        "guardrails_input": 0.0311,
-        "embedding": 0.0005,
-        "retrieval": 0.0161,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0017,
-        "guardrails_output": 0.0659
+        "guardrails_input": 0.092,
+        "embedding": 0.3917,
+        "retrieval": 3.4059,
+        "generation": 217.2074
       },
-      "pipeline_latency_ms": 0.12,
+      "pipeline_latency_ms": 221.1,
       "success": true,
-      "confidence": 0.515
+      "confidence": 0.571
     },
     {
       "query": "How does a computer processor work?",
-      "total_ms": 0.2024,
+      "total_ms": 233.6837,
       "latency_breakdown": {
-        "guardrails_input": 0.0379,
-        "embedding": 0.0006,
-        "retrieval": 0.0222,
-        "guardrails_retrieval": 0.0024,
-        "generation": 0.0023,
-        "guardrails_output": 0.1052
+        "guardrails_input": 0.1169,
+        "embedding": 0.3397,
+        "retrieval": 1.6807,
+        "generation": 231.0035
       },
-      "pipeline_latency_ms": 0.17,
+      "pipeline_latency_ms": 233.14,
       "success": true,
-      "confidence": 0.322
+      "confidence": 0.459
     },
     {
       "query": "What are the benefits of yoga?",
-      "total_ms": 0.1769,
+      "total_ms": 516.1583,
       "latency_breakdown": {
-        "guardrails_input": 0.0319,
-        "embedding": 0.0005,
-        "retrieval": 0.0139,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0019,
-        "guardrails_output": 0.0937
+        "guardrails_input": 0.0938,
+        "embedding": 1.1011,
+        "retrieval": 3.3361,
+        "generation": 510.7682
       },
-      "pipeline_latency_ms": 0.14,
+      "pipeline_latency_ms": 515.3,
       "success": true,
-      "confidence": 0.462
+      "confidence": 0.582
     },
     {
       "query": "\u092d\u093e\u0930\u0924 \u0915\u093e \u0938\u092c\u0938\u0947 \u092c\u0921\u093c\u093e \u0936\u0939\u0930 \u0915\u094c\u0928 \u0938\u093e \u0939\u0948?",
-      "total_ms": 0.2482,
+      "total_ms": 180.1721,
       "latency_breakdown": {
-        "guardrails_input": 0.0567,
-        "embedding": 0.0007,
-        "retrieval": 0.0177,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.002,
-        "guardrails_output": 0.1085
+        "guardrails_input": 0.1489,
+        "embedding": 0.3241,
+        "retrieval": 2.2715,
+        "generation": 176.8938
       },
-      "pipeline_latency_ms": 0.19,
+      "pipeline_latency_ms": 179.64,
       "success": true,
-      "confidence": 0.383
+      "confidence": 0.468
     },
     {
       "query": "\u0938\u0942\u0930\u094d\u092f \u0917\u094d\u0930\u0939\u0923 \u0915\u0948\u0938\u0947 \u0939\u094b\u0924\u093e \u0939\u0948?",
-      "total_ms": 0.1743,
+      "total_ms": 195.3403,
       "latency_breakdown": {
-        "guardrails_input": 0.0358,
-        "embedding": 0.0005,
-        "retrieval": 0.0143,
-        "guardrails_retrieval": 0.0024,
-        "generation": 0.0017,
-        "guardrails_output": 0.0904
+        "guardrails_input": 0.0892,
+        "embedding": 0.2651,
+        "retrieval": 1.3544,
+        "generation": 193.341
       },
-      "pipeline_latency_ms": 0.15,
+      "pipeline_latency_ms": 195.05,
       "success": true,
-      "confidence": 0.284
+      "confidence": 0.437
     },
     {
       "query": "\u092e\u0927\u0941\u092e\u0947\u0939 \u0915\u0947 \u0932\u0915\u094d\u0937\u0923 \u0915\u094d\u092f\u093e \u0939\u0948\u0902?",
-      "total_ms": 0.2161,
+      "total_ms": 181.4869,
       "latency_breakdown": {
-        "guardrails_input": 0.0333,
-        "embedding": 0.0005,
-        "retrieval": 0.0157,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0024,
-        "guardrails_output": 0.1149
+        "guardrails_input": 0.0926,
+        "embedding": 0.2643,
+        "retrieval": 3.3247,
+        "generation": 177.4882
       },
-      "pipeline_latency_ms": 0.17,
+      "pipeline_latency_ms": 181.17,
       "success": true,
-      "confidence": 0.286
+      "confidence": 0.48
     },
     {
       "query": "\u092d\u093e\u0930\u0924 \u092e\u0947\u0902 \u0915\u093f\u0924\u0928\u0947 \u0930\u093e\u091c\u094d\u092f \u0939\u0948\u0902?",
-      "total_ms": 0.2481,
+      "total_ms": 142.8395,
       "latency_breakdown": {
-        "guardrails_input": 0.0383,
-        "embedding": 0.0008,
-        "retrieval": 0.0232,
-        "guardrails_retrieval": 0.0025,
-        "generation": 0.0028,
-        "guardrails_output": 0.1031
+        "guardrails_input": 0.0881,
+        "embedding": 0.2418,
+        "retrieval": 3.253,
+        "generation": 138.9865
       },
-      "pipeline_latency_ms": 0.17,
+      "pipeline_latency_ms": 142.57,
       "success": true,
-      "confidence": 0.405
+      "confidence": 0.468
     },
     {
       "query": "\u0939\u093f\u092e\u093e\u0932\u092f \u092a\u0930\u094d\u0935\u0924 \u0915\u093f\u0924\u0928\u093e \u090a\u0902\u091a\u093e \u0939\u0948?",
-      "total_ms": 0.1916,
+      "total_ms": 179.0042,
       "latency_breakdown": {
-        "guardrails_input": 0.0378,
-        "embedding": 0.0005,
-        "retrieval": 0.0183,
-        "guardrails_retrieval": 0.0022,
-        "generation": 0.0021,
-        "guardrails_output": 0.0924
+        "guardrails_input": 0.0903,
+        "embedding": 0.2586,
+        "retrieval": 1.165,
+        "generation": 177.1278
       },
-      "pipeline_latency_ms": 0.15,
+      "pipeline_latency_ms": 178.64,
       "success": true,
-      "confidence": 0.284
+      "confidence": 0.421
     },
     {
       "query": "\u09ad\u09be\u09b0\u09a4\u09c7\u09b0 \u09b0\u09be\u099c\u09a7\u09be\u09a8\u09c0 \u0995\u09bf?",
-      "total_ms": 0.1541,
+      "total_ms": 148.9406,
       "latency_breakdown": {
-        "guardrails_input": 0.0266,
-        "embedding": 0.0004,
-        "retrieval": 0.014,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.0021,
-        "guardrails_output": 0.0726
+        "guardrails_input": 0.0647,
+        "embedding": 0.227,
+        "retrieval": 1.3188,
+        "generation": 147.04
       },
-      "pipeline_latency_ms": 0.12,
+      "pipeline_latency_ms": 148.65,
       "success": true,
-      "confidence": 0.302
+      "confidence": 0.343
     },
     {
       "query": "\u09aa\u09c3\u09a5\u09bf\u09ac\u09c0 \u0995\u09bf\u09ad\u09be\u09ac\u09c7 \u0998\u09cb\u09b0\u09c7?",
-      "total_ms": 0.1626,
+      "total_ms": 153.5719,
       "latency_breakdown": {
-        "guardrails_input": 0.0276,
-        "embedding": 0.0005,
-        "retrieval": 0.0141,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0018,
-        "guardrails_output": 0.0869
+        "guardrails_input": 0.0777,
+        "embedding": 0.2569,
+        "retrieval": 1.2899,
+        "generation": 151.6473
       },
-      "pipeline_latency_ms": 0.13,
+      "pipeline_latency_ms": 153.27,
       "success": true,
-      "confidence": 0.258
+      "confidence": 0.337
     },
     {
       "query": "\u09a1\u09c7\u0999\u09cd\u0997\u09c1 \u099c\u09cd\u09ac\u09b0\u09c7\u09b0 \u09b2\u0995\u09cd\u09b7\u09a3 \u0995\u09bf?",
-      "total_ms": 0.1705,
+      "total_ms": 161.293,
       "latency_breakdown": {
-        "guardrails_input": 0.0317,
-        "embedding": 0.0005,
-        "retrieval": 0.0139,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.0025,
-        "guardrails_output": 0.0886
+        "guardrails_input": 0.1105,
+        "embedding": 0.3258,
+        "retrieval": 2.9916,
+        "generation": 157.3558
       },
-      "pipeline_latency_ms": 0.14,
+      "pipeline_latency_ms": 160.78,
       "success": true,
-      "confidence": 0.257
+      "confidence": 0.381
     },
     {
       "query": "\u0b87\u0ba8\u0bcd\u0ba4\u0bbf\u0baf\u0bbe\u0bb5\u0bbf\u0ba9\u0bcd \u0ba4\u0bb2\u0bc8\u0ba8\u0b95\u0bb0\u0bae\u0bcd \u0b8e\u0ba9\u0bcd\u0ba9?",
-      "total_ms": 0.2208,
+      "total_ms": 192.8471,
       "latency_breakdown": {
-        "guardrails_input": 0.0382,
-        "embedding": 0.0007,
-        "retrieval": 0.0198,
-        "guardrails_retrieval": 0.0028,
-        "generation": 0.0031,
-        "guardrails_output": 0.0975
+        "guardrails_input": 0.0892,
+        "embedding": 0.258,
+        "retrieval": 1.6155,
+        "generation": 190.551
       },
-      "pipeline_latency_ms": 0.16,
+      "pipeline_latency_ms": 192.51,
       "success": true,
-      "confidence": 0.43
+      "confidence": 0.447
     },
     {
       "query": "\u0baa\u0bc2\u0bae\u0bbf \u0b8e\u0baa\u0bcd\u0baa\u0b9f\u0bbf \u0b9a\u0bc1\u0bb4\u0bb2\u0bcd\u0b95\u0bbf\u0bb1\u0ba4\u0bc1?",
-      "total_ms": 0.1986,
+      "total_ms": 200.9674,
       "latency_breakdown": {
-        "guardrails_input": 0.0316,
-        "embedding": 0.0009,
-        "retrieval": 0.0158,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.002,
-        "guardrails_output": 0.1066
+        "guardrails_input": 0.0852,
+        "embedding": 0.2447,
+        "retrieval": 1.1207,
+        "generation": 199.1121
       },
-      "pipeline_latency_ms": 0.16,
+      "pipeline_latency_ms": 200.56,
       "success": true,
-      "confidence": 0.28
+      "confidence": 0.434
     },
     {
       "query": "\u0c2d\u0c3e\u0c30\u0c24\u0c26\u0c47\u0c36 \u0c30\u0c3e\u0c1c\u0c27\u0c3e\u0c28\u0c3f \u0c0f\u0c2e\u0c3f\u0c1f\u0c3f?",
-      "total_ms": 0.2357,
+      "total_ms": 164.022,
       "latency_breakdown": {
-        "guardrails_input": 0.0285,
-        "embedding": 0.0004,
-        "retrieval": 0.0154,
-        "guardrails_retrieval": 0.0026,
-        "generation": 0.0022,
-        "guardrails_output": 0.0843
+        "guardrails_input": 0.0856,
+        "embedding": 0.3056,
+        "retrieval": 1.8002,
+        "generation": 155.8349
       },
-      "pipeline_latency_ms": 0.13,
+      "pipeline_latency_ms": 158.03,
       "success": true,
-      "confidence": 0.345
+      "confidence": 0.326
     },
     {
       "query": "\u0c2d\u0c42\u0c2e\u0c3f \u0c0e\u0c32\u0c3e \u0c24\u0c3f\u0c30\u0c41\u0c17\u0c41\u0c24\u0c41\u0c02\u0c26\u0c3f?",
-      "total_ms": 0.2674,
+      "total_ms": 147.8922,
       "latency_breakdown": {
-        "guardrails_input": 0.0371,
-        "embedding": 0.001,
-        "retrieval": 0.0331,
-        "guardrails_retrieval": 0.0033,
-        "generation": 0.0037,
-        "guardrails_output": 0.1214
+        "guardrails_input": 0.109,
+        "embedding": 0.2789,
+        "retrieval": 3.0526,
+        "generation": 144.0643
       },
-      "pipeline_latency_ms": 0.2,
+      "pipeline_latency_ms": 147.5,
       "success": true,
-      "confidence": 0.243
+      "confidence": 0.342
     },
     {
       "query": "What is the capital of India?",
-      "total_ms": 0.1984,
+      "total_ms": 0.3458,
       "latency_breakdown": {
-        "guardrails_input": 0.0377,
-        "embedding": 0.0005,
-        "retrieval": 0.0192,
-        "guardrails_retrieval": 0.0023,
-        "generation": 0.0024,
-        "guardrails_output": 0.0844
+        "cache_lookup": 0.4,
+        "embedding": 0.0028
       },
-      "pipeline_latency_ms": 0.15,
+      "pipeline_latency_ms": 0.5,
       "success": true,
-      "confidence": 0.575
+      "confidence": 0.629
     },
     {
       "query": "How does photosynthesis work?",
-      "total_ms": 0.1922,
+      "total_ms": 0.2339,
       "latency_breakdown": {
-        "guardrails_input": 0.035,
-        "embedding": 0.0005,
-        "retrieval": 0.0155,
-        "guardrails_retrieval": 0.0025,
-        "generation": 0.0023,
-        "guardrails_output": 0.0983
+        "cache_lookup": 0.4,
+        "embedding": 0.0026
       },
-      "pipeline_latency_ms": 0.15,
+      "pipeline_latency_ms": 0.5,
       "success": true,
-      "confidence": 0.269
+      "confidence": 0.388
     },
     {
       "query": "What are the symptoms of malaria?",
-      "total_ms": 0.2014,
+      "total_ms": 0.3116,
       "latency_breakdown": {
-        "guardrails_input": 0.0349,
-        "embedding": 0.0004,
-        "retrieval": 0.0175,
-        "guardrails_retrieval": 0.0025,
-        "generation": 0.0023,
-        "guardrails_output": 0.1043
+        "cache_lookup": 0.4,
+        "embedding": 0.0028
       },
-      "pipeline_latency_ms": 0.16,
+      "pipeline_latency_ms": 0.5,
       "success": true,
-      "confidence": 0.418
-    },
-    {
-      "query": "Who invented the telephone?",
-      "total_ms": 0.1646,
-      "latency_breakdown": {
-        "guardrails_input": 0.0299,
-        "embedding": 0.0006,
-        "retrieval": 0.0177,
-        "guardrails_retrieval": 0.0025,
-        "generation": 0.0022,
-        "guardrails_output": 0.0719
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.4
-    },
-    {
-      "query": "What is the population of Mumbai?",
-      "total_ms": 0.1617,
-      "latency_breakdown": {
-        "guardrails_input": 0.0381,
-        "embedding": 0.0004,
-        "retrieval": 0.0175,
-        "guardrails_retrieval": 0.0022,
-        "generation": 0.0018,
-        "guardrails_output": 0.0648
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.52
-    },
-    {
-      "query": "How is steel manufactured?",
-      "total_ms": 0.152,
-      "latency_breakdown": {
-        "guardrails_input": 0.0272,
-        "embedding": 0.0006,
-        "retrieval": 0.0164,
-        "guardrails_retrieval": 0.002,
-        "generation": 0.0021,
-        "guardrails_output": 0.0764
-      },
-      "pipeline_latency_ms": 0.12,
-      "success": true,
-      "confidence": 0.274
+      "confidence": 0.565
     }
   ]
 }

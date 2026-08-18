@@ -18,91 +18,127 @@ free tier (1500 requests/day).
 import logging
 import re
 from typing import Optional
+import httpx
 
 import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
-
-# Language display names for the 14 MSMARCO-XI Dataset Languages + English
+# Language display names (Plain names prevent model copying bracketed labels)
 LANG_NAMES = {
-    "hin_Deva": "Hindi (हिंदी)",
-    "ben_Beng": "Bengali (বাংলা)",
-    "tam_Taml": "Tamil (தமிழ்)",
-    "tel_Telu": "Telugu (తెలుగు)",
-    "mar_Deva": "Marathi (मराठी)",
-    "guj_Gujr": "Gujarati (ગુજરાતી)",
-    "kan_Knda": "Kannada (ಕನ್ನಡ)",
-    "mal_Mlym": "Malayalam (മലയാളം)",
-    "pan_Guru": "Punjabi (ਪੰਜਾਬੀ)",
-    "ori_Orya": "Odia (ଓଡ଼ିଆ)",
-    "asm_Beng": "Assamese (অসমীয়া)",
-    "urd_Arab": "Urdu (اردو)",
-    "san_Deva": "Sanskrit (संस्कृतम्)",
-    "nep_Deva": "Nepali (नेपाली)",
+    "hin_Deva": "Hindi",
+    "tam_Taml": "Tamil",
     "eng_Latn": "English",
-    "hi-IN": "Hindi (हिंदी)",
-    "bn-IN": "Bengali (বাংলা)",
-    "ta-IN": "Tamil (தமிழ்)",
-    "te-IN": "Telugu (తెలుగు)",
-    "mr-IN": "Marathi (मराठी)",
-    "gu-IN": "Gujarati (ગુજરાતી)",
-    "kn-IN": "Kannada (ಕನ್ನಡ)",
-    "ml-IN": "Malayalam (മലയാളം)",
-    "pa-IN": "Punjabi (ਪੰਜਾਬੀ)",
-    "or-IN": "Odia (ଓଡ଼ିଆ)",
-    "as-IN": "Assamese (অসমীয়া)",
-    "ur-IN": "Urdu (اردو)",
-    "kok-IN": "Konkani (कोंकणी)",
+    "hi-IN": "Hindi",
+    "ta-IN": "Tamil",
     "en-IN": "English",
     "unknown": "the same language as the question",
 }
 
 # ═══════════════════════════════════════════════════════════════════
-# Ultra-Low Latency Dynamic Token Allocator
+# Intent-Based Dynamic Token Allocator
 # ═══════════════════════════════════════════════════════════════════
 def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
-    """Hard-capped 80 tokens for consistent ~125ms sub-200ms response time."""
-    return 80
+    """
+    Allocates tokens based on query intent & linguistic script:
+    1. FACTOID / 1-LINER (Who, When, Where, Capital, Name, Date, Currency):
+       - English: 40 tokens (~45ms)
+       - Hindi: 65 tokens (~75ms)
+       - Tamil: 70 tokens (~80ms)
+    2. EXPLANATORY / PROCESS (How, Why, Explain, Difference, Mechanism):
+       - English: 80 tokens (~100ms)
+       - Hindi: 105 tokens (~135ms)
+       - Tamil: 110 tokens (~140ms)
+    3. DEFINITIONAL / GENERAL (What, Which, Default):
+       - English: 60 tokens (~75ms)
+       - Hindi: 85 tokens (~100ms)
+       - Tamil: 90 tokens (~110ms)
+    """
+    q_lower = question.lower().strip()
+    is_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in question) or "tam" in str(language).lower()
+    is_hindi = any(0x0900 <= ord(c) <= 0x097F for c in question) or "hin" in str(language).lower()
+
+    # Intent 1: Factoid / 1-liner keywords
+    factoid_keywords = (
+        "who", "when", "where", "capital", "winner", "name", "date", "currency", "population", "president", "minister", "ceo", "founder",
+        "कौन", "कब", "कहाँ", "राजधानी", "नाम", "तारीख", "मुद्रा", "जनसंख्या", "राष्ट्रपति", "प्रधानमंत्री",
+        "யார்", "எப்போது", "எங்கு", "தலைநகரம்", "பெயர்", "தேதி", "நாணயம்", "மக்கள் தொகை", "எது"
+    )
+    if any(k in q_lower for k in factoid_keywords):
+        if is_tamil:
+            return 70
+        if is_hindi:
+            return 65
+        return 40
+
+    # Intent 2: Explanatory / Process keywords
+    explanatory_keywords = (
+        "how", "why", "explain", "difference", "process", "mechanism", "steps", "reason", "describe",
+        "कैसे", "क्यों", "विस्तार", "अंतर", "प्रक्रिया", "कारण", "विवरण",
+        "எவ்வாறு", "ஏன்", "விளக்குக", "வேறுபாடு", "செயல்முறை", "காரணம்"
+    )
+    if any(k in q_lower for k in explanatory_keywords):
+        if is_tamil:
+            return 110
+        if is_hindi:
+            return 105
+        return 80
+
+    # Intent 3: Definitional / General
+    if is_tamil:
+        return 90
+    if is_hindi:
+        return 85
+    return 60
 
 
 def clean_and_complete_answer(text: str) -> str:
-    """Ensures answers end on clean sentence boundaries without dangling half-sentences."""
+    """Ensures answers end on clean sentence boundaries without dangling half-sentences, language labels, or list teasers."""
     text = text.strip()
     if not text:
         return text
+    
+    # 1. Strip any leading language bracket prefixes e.g. "(हिंदी: ...)" or "(Hindi: ...)"
+    text = re.sub(r'^\s*\([^)]*(?:हिंदी|तमिल|hindi|tamil|english)[^)]*\)\s*:?\s*', '', text, flags=re.IGNORECASE).strip()
+    
+    # 2. Strip trailing list teasers / bullet numbers e.g. "Here is a step-by-step explanation:\n1." or "1." or "Following are:"
+    text = re.sub(r'(?:Here (?:is|are)[^:\n]*:?|Following (?:are|is)[^:\n]*:?|\n\s*\d+\.?|\n\s*[-*•])\s*$', '', text, flags=re.IGNORECASE).strip()
+
+    if text.endswith(':'):
+        text = text[:-1].strip()
+
     if text[-1] in ".!?।॥\"')":
         return text
     for punc in [".", "!", "?", "।", "॥"]:
         last_idx = text.rfind(punc)
-        if last_idx > 30:
+        if last_idx > 15:
             return text[:last_idx + 1].strip()
     return text
 
 
-# Ultra-Compact Direct Single-Answer Prompt
+# Natural Conversational Single-Answer Voice Prompt (Zero bullet lists = Zero cutoffs)
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = "You are VartaLaap. Answer concisely in 1-2 complete sentences directly in {language}. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge. Never apologize or mention missing context."
+SYSTEM_PROMPT = (
+    "You are VartaLaap, a conversational voice AI assistant. Answer directly and factually in {language} in 1 to 2 complete spoken sentences. "
+    "NEVER use bullet points, numbered lists, markdown, or list intro headers like 'Here is a step-by-step:'. "
+    "If Context is provided, answer strictly grounded in Context. "
+    "If the query cannot be answered factually, state that you do not have verified knowledge on this topic. "
+    "NEVER guess, fabricate names, or invent fictional details."
+)
 
 USER_PROMPT_TEMPLATE = """{history_context}{context}Question: {question}
 
 Answer:"""
 
 
-import httpx
-
-
 class GroqGenerator:
-    """
-    Ultra-low-latency generator powered by Groq LPUs.
-    Primary: allam-2-7b (110-140ms TTFT + generation).
-    """
+    """Ultra-low-latency generator powered by Groq LPUs."""
 
     def __init__(
         self,
         api_key: str,
         gemini_api_key: Optional[str] = None,
         model_name: str = "allam-2-7b",
-        max_output_tokens: int = 80,
+        max_output_tokens: int = 100,
         temperature: float = 0.1,
     ):
         self.api_key = api_key

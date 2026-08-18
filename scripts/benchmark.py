@@ -17,7 +17,9 @@ import asyncio
 import argparse
 import logging
 from pathlib import Path
+import dotenv
 
+dotenv.load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.vector_store import VectorStore
@@ -125,9 +127,9 @@ async def run_benchmark(num_queries: int, output_path: str = None):
             "success": response.success,
             "confidence": response.confidence,
         })
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(0.05)
 
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 5 == 0:
             logger.info(f"  Completed {i + 1}/{num_queries} queries")
 
     # Report
