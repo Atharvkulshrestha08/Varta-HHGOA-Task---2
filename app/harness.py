@@ -39,6 +39,7 @@ from app.stt import SarvamSTTClient, MockSTTClient
 from app.generator import GeminiGenerator, MockGenerator
 from app.vector_store import VectorStore
 from app.wikipedia_retriever import WikipediaRetriever
+from app.non_llm_synthesizer import NonLLMSynthesizer
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +377,7 @@ class PipelineHarness:
         self.guardrails = guardrails or GuardrailsEngine()
         self.wiki_retriever = wiki_retriever or WikipediaRetriever()
         self.semantic_cache = SemanticQACache(max_size=500, min_similarity=0.94)
+        self.non_llm_synthesizer = NonLLMSynthesizer()
 
         # Circuit breakers for external services
         self.stt_circuit = CircuitBreaker(threshold=3, reset_timeout=30)
@@ -780,12 +782,31 @@ class PipelineHarness:
 
         try:
             with self.analytics.time_stage(record, "generation"):
-                gen_result = await self.generator.generate(
-                    question=query_text,
+                # Fast Path: Non-LLM Continuous TextRank + SVD Matrix Energy Decomposition (< 4ms)
+                non_llm_res = self.non_llm_synthesizer.synthesize(
+                    query=query_text,
+                    query_vector=query_vector,
                     passages=results[:3],
-                    language=language,
-                    conversation_history=conversation_history,
+                    embedder=self.vector_store,
+                    max_sentences=2,
                 )
+
+                if non_llm_res.get("sentences_selected", 0) > 0 and len(non_llm_res.get("answer", "")) > 15:
+                    gen_result = {
+                        "answer": non_llm_res["answer"],
+                        "model": "non-llm/TextRank+SVD",
+                        "passages_used": len(results[:3]),
+                        "success": True,
+                        "error": None,
+                    }
+                else:
+                    # Fallback to LLM if no salient sentence was extracted
+                    gen_result = await self.generator.generate(
+                        question=query_text,
+                        passages=results[:3],
+                        language=language,
+                        conversation_history=conversation_history,
+                    )
 
             if not gen_result["success"]:
                 self.llm_circuit.record_failure()
