@@ -35,95 +35,149 @@ LANG_NAMES = {
 }
 
 # ═══════════════════════════════════════════════════════════════════
-# Intent-Based Dynamic Token Allocator
+# Fix #1: Complexity & Confidence-Aware Dynamic Token Allocator
 # ═══════════════════════════════════════════════════════════════════
-def determine_dynamic_max_tokens(question: str, language: str = "unknown") -> int:
+def estimate_answer_complexity(question: str, retrieval_score: float = 0.6, language: str = "eng_Latn") -> dict:
     """
-    Allocates tokens based on query intent & linguistic script:
-    1. FACTOID / 1-LINER (Who, When, Where, Capital, Name, Date, Currency):
-       - English: 40 tokens (~45ms)
-       - Hindi: 65 tokens (~75ms)
-       - Tamil: 70 tokens (~80ms)
-    2. EXPLANATORY / PROCESS (How, Why, Explain, Difference, Mechanism):
-       - English: 80 tokens (~100ms)
-       - Hindi: 105 tokens (~135ms)
-       - Tamil: 110 tokens (~140ms)
-    3. DEFINITIONAL / GENERAL (What, Which, Default):
-       - English: 60 tokens (~75ms)
-       - Hindi: 85 tokens (~100ms)
-       - Tamil: 90 tokens (~110ms)
+    Route token budget by question complexity, script token density, and retrieval confidence.
+    - Factual (Who, When, Where, What is): 50 EN / 70 HI / 80 TA
+    - Explanatory (How, Why, Explain, Process): 95 EN / 130 HI / 150 TA
+    - List/Steps: 60 EN / 85 HI / 100 TA
+    Boosts tokens by 15% when retrieval confidence >= 0.70; reduces by 15% when < 0.58.
     """
     q_lower = question.lower().strip()
-    is_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in question) or "tam" in str(language).lower()
-    is_hindi = any(0x0900 <= ord(c) <= 0x097F for c in question) or "hin" in str(language).lower()
+    
+    # Intent classification across English, Hindi, and Tamil
+    if re.search(r"\b(explain|how|why|describe|difference|mechanism|process|steps|विस्तार|अंतर|प्रक्रिया|कारण|விளக்குக|வேறுபாடு|செயல்முறை)\b", q_lower):
+        qtype = "explain"
+    elif re.search(r"\b(list|enumerate|sequence|steps|क्रम|सूची|பட்டியல்)\b", q_lower):
+        qtype = "list"
+    else:
+        qtype = "factual"
 
-    # Intent 1: Factoid / 1-liner keywords
-    factoid_keywords = (
-        "who", "when", "where", "capital", "winner", "name", "date", "currency", "population", "president", "minister", "ceo", "founder",
-        "कौन", "कब", "कहाँ", "राजधानी", "नाम", "तारीख", "मुद्रा", "जनसंख्या", "राष्ट्रपति", "प्रधानमंत्री",
-        "யார்", "எப்போது", "எங்கு", "தலைநகரம்", "பெயர்", "தேதி", "நாணயம்", "மக்கள் தொகை", "எது"
-    )
-    if any(k in q_lower for k in factoid_keywords):
-        if is_tamil:
-            return 70
-        if is_hindi:
-            return 65
-        return 40
+    # Map language key to canonical partition
+    lang_key = "eng_Latn"
+    if "hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in question):
+        lang_key = "hin_Deva"
+    elif "tam" in str(language).lower() or any(0x0B80 <= ord(c) <= 0x0BFF for c in question):
+        lang_key = "tam_Taml"
 
-    # Intent 2: Explanatory / Process keywords
-    explanatory_keywords = (
-        "how", "why", "explain", "difference", "process", "mechanism", "steps", "reason", "describe",
-        "कैसे", "क्यों", "विस्तार", "अंतर", "प्रक्रिया", "कारण", "विवरण",
-        "எவ்வாறு", "ஏன்", "விளக்குக", "வேறுபாடு", "செயல்முறை", "காரணம்"
-    )
-    if any(k in q_lower for k in explanatory_keywords):
-        if is_tamil:
-            return 110
-        if is_hindi:
-            return 105
-        return 80
+    token_budgets = {
+        "factual": {"eng_Latn": 50, "hin_Deva": 70, "tam_Taml": 80},
+        "explain": {"eng_Latn": 95, "hin_Deva": 130, "tam_Taml": 150},
+        "list": {"eng_Latn": 60, "hin_Deva": 85, "tam_Taml": 100},
+    }
 
-    # Intent 3: Definitional / General
-    if is_tamil:
-        return 90
-    if is_hindi:
-        return 85
-    return 60
+    base_tokens = token_budgets.get(qtype, {}).get(lang_key, 65)
+
+    # Boost if high confidence (strongly grounded context)
+    if retrieval_score >= 0.70:
+        base_tokens = int(base_tokens * 1.15)
+    elif retrieval_score < 0.58:
+        base_tokens = int(base_tokens * 0.85)
+
+    return {
+        "type": qtype,
+        "language": lang_key,
+        "max_tokens": max(40, min(160, base_tokens)),
+    }
 
 
-def clean_and_complete_answer(text: str) -> str:
-    """Ensures answers end on clean sentence boundaries without dangling half-sentences, language labels, or list teasers."""
+def determine_dynamic_max_tokens(question: str, language: str = "unknown", retrieval_score: float = 0.6) -> int:
+    """Backward-compatible helper returning max_tokens integer."""
+    return estimate_answer_complexity(question, retrieval_score, language)["max_tokens"]
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Fix #4: Enhanced Voice Truncation Guard & Sanitizer
+# ═══════════════════════════════════════════════════════════════════
+def sanitize_output_for_voice(text: str, language: str = "eng_Latn") -> str:
+    """Strip incomplete lists, numbers, and snap to language-specific sentence boundaries."""
     text = text.strip()
     if not text:
         return text
-    
-    # 1. Strip any leading language bracket prefixes e.g. "(हिंदी: ...)" or "(Hindi: ...)"
-    text = re.sub(r'^\s*\([^)]*(?:हिंदी|तमिल|hindi|tamil|english)[^)]*\)\s*:?\s*', '', text, flags=re.IGNORECASE).strip()
-    
-    # 2. Strip trailing list teasers / bullet numbers e.g. "Here is a step-by-step explanation:\n1." or "1." or "Following are:"
-    text = re.sub(r'(?:Here (?:is|are)[^:\n]*:?|Following (?:are|is)[^:\n]*:?|\n\s*\d+\.?|\n\s*[-*•])\s*$', '', text, flags=re.IGNORECASE).strip()
 
-    if text.endswith(':'):
-        text = text[:-1].strip()
+    # 1. Strip language bracket prefixes e.g. "(हिंदी: ...)" or "(Tamil: ...)"
+    text = re.sub(r'^\s*\([^)]*(?:हिंदी|तमिल|hindi|tamil|english)[^)]*\)\s*:?\s*', '', text, flags=re.IGNORECASE).strip()
+
+    # 2. If the text has list intros or lines starting with numbers/bullets, keep only the complete prose
+    text = re.split(r'\n+\s*(?:\d+[\.\)]|[-*•]|(?:Here|Following)\s+(?:is|are)[^:\n]*:?)', text)[0].strip()
+
+    # 3. Strip trailing list teasers / opened bullets
+    bad_endings = [
+        r'(?:Here (?:is|are)[^:\n]*:?|Following (?:are|is)[^:\n]*:?)\s*$',
+        r'\d+[\.\)]\s*$',
+        r'[-*•]\s*$',
+        r':\s*$',
+    ]
+    for pattern in bad_endings:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
+
+    if not text:
+        return ""
 
     if text[-1] in ".!?।॥\"')":
         return text
+
     for punc in [".", "!", "?", "।", "॥"]:
         last_idx = text.rfind(punc)
         if last_idx > 15:
             return text[:last_idx + 1].strip()
-    return text
+
+    term = "।" if ("hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in text)) else "."
+    return text + term
 
 
-# Natural Conversational Single-Answer Voice Prompt (Zero bullet lists = Zero cutoffs)
+def clean_and_complete_answer(text: str, language: str = "eng_Latn") -> str:
+    """Compatibility alias for sanitize_output_for_voice."""
+    return sanitize_output_for_voice(text, language)
+
+
 # ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = (
-    "You are VartaLaap, a conversational voice AI assistant. Answer directly and factually in {language} in 1 to 2 complete spoken sentences. "
-    "NEVER use bullet points, numbered lists, markdown, or list intro headers like 'Here is a step-by-step:'. "
-    "If Context is provided, answer strictly grounded in Context. "
-    "If the query cannot be answered factually, state that you do not have verified knowledge on this topic. "
-    "NEVER guess, fabricate names, or invent fictional details."
-)
+# Fix #3: Native Language Spoken Voice Prompts (Zero Jargon / Voice-Native)
+# ═══════════════════════════════════════════════════════════════════
+SYSTEM_PROMPTS_CONFIDENT = {
+    "eng_Latn": (
+        "You are VartaLaap, a conversational voice AI assistant. Answer the question directly in 1 to 2 natural spoken sentences. "
+        "Speak naturally as if talking to a friend on the phone. "
+        "NEVER use bullet points, numbered lists, markdown, or list intro headers like 'Here is a step-by-step:'. "
+        "If Context is provided, answer strictly grounded in Context. Never guess or fabricate facts."
+    ),
+    "hin_Deva": (
+        "तुम वार्तालाप (VartaLaap) आवाज़ सहायक हो। सवाल का जवाब 1 से 2 सरल और स्पष्ट वाक्यों में शुद्ध हिंदी में दो। "
+        "जैसे फ़ोन पर किसी दोस्त को समझा रहे हो, वैसे स्वाभाविक रूप से बोलो। "
+        "कोई सूची (bullet points), नंबरिंग या मार्कडाउन का उपयोग मत करो। "
+        "यदि जानकारी दी गई है, तो उसी पर आधारित उत्तर दो। कभी कोई गलत या मनगढ़ंत बात मत बोलो।"
+    ),
+    "tam_Taml": (
+        "நீங்கள் வார்த்தாலாப் (VartaLaap) குரல் உதவியாளர். கேள்விக்கு 1 முதல் 2 எளிய மற்றும் தெளிவான வாக்கியங்களில் தமிழில் பதிலளிக்கவும். "
+        "தொலைபேசியில் நண்பரிடம் பேசுவது போல் இயல்பாகப் பேசுங்கள். "
+        "பட்டியல் (bullet points), எண்கள் அல்லது மார்க்டவுன் பயன்படுத்த வேண்டாம். "
+        "கொடுக்கப்பட்ட தகவலின் அடிப்படையில் மட்டுமே பதிலளிக்கவும். தவறான தகவலை உருவாக்க வேண்டாம்."
+    ),
+}
+
+SYSTEM_PROMPTS_HEDGED = {
+    "eng_Latn": (
+        "You are VartaLaap, answering a question where available context is partial. "
+        "Answer in 1 to 2 spoken sentences using the provided context, but explicitly qualify your answer (e.g. 'Based on available information...'). "
+        "If the context does not answer the question, briefly admit you do not have verified knowledge. "
+        "NEVER guess, fabricate names, or invent facts. No lists or markdown."
+    ),
+    "hin_Deva": (
+        "तुम वार्तालाप हो। उपलब्ध संदर्भ सीमित है। "
+        "दिए गए संदर्भ के आधार पर 1 से 2 सरल वाक्यों में उत्तर दो, और स्पष्ट करो कि यह उपलब्ध जानकारी पर आधारित है। "
+        "यदि संदर्भ में उत्तर न हो, तो सरलता से कह दो कि पर्याप्त जानकारी नहीं है। कोई मनगढ़ंत बात मत बोलो।"
+    ),
+    "tam_Taml": (
+        "நீங்கள் வார்த்தாலாப். கிடைக்கும் தகவல் பகுதியானது. "
+        "வழங்கப்பட்ட தகவலின் அடிப்படையில் 1 முதல் 2 எளிய வாக்கியங்களில் பதிலளிக்கவும், மேலும் இது கிடைக்கக்கூடிய தகவலை அடிப்படையாகக் கொண்டது என்பதைக் குறிப்பிடவும். "
+        "தகவல் போதுமானதாக இல்லை என்றால், அதை நேரடியாகக் கூறிவிடுங்கள். தவறான தகவலை உருவாக்க வேண்டாம்."
+    ),
+}
+
+# Fallback generic prompt
+SYSTEM_PROMPT = SYSTEM_PROMPTS_CONFIDENT["eng_Latn"]
 
 USER_PROMPT_TEMPLATE = """{history_context}{context}Question: {question}
 
@@ -145,6 +199,8 @@ class GroqGenerator:
         self.primary_model_name = model_name
         self.fallback_models = [
             "allam-2-7b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.6-27b",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -181,17 +237,18 @@ class GroqGenerator:
         language: str = "unknown",
         conversation_history: list[dict] = None,
     ) -> dict:
-        lang_name = LANG_NAMES.get(language, "English")
+        max_score = max([p.get("score", 0.0) for p in passages], default=0.0)
+        complexity_info = estimate_answer_complexity(question, max_score, language)
+        dynamic_tokens = complexity_info["max_tokens"]
+        lang_key = complexity_info["language"]
 
-        dynamic_tokens = determine_dynamic_max_tokens(question, language)
-
-        # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.68][:2]
+        # Inject top 2 passages if available (hedged or confident)
+        top_passages = [p for p in passages if p.get("score", 0.0) >= 0.45][:2]
 
         if top_passages:
             context_parts = []
             for i, p in enumerate(top_passages):
-                text = p.get("text", "").strip()[:200]
+                text = p.get("text", "").strip()[:240]
                 src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
                 context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
             context_block = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
@@ -211,8 +268,13 @@ class GroqGenerator:
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        system = SYSTEM_PROMPT.format(language=lang_name)
-        user_prompt = f"{history_context}{context_block}{question}"
+        # Select Confident vs Hedged prompt
+        if max_score >= 0.58:
+            system = SYSTEM_PROMPTS_CONFIDENT.get(lang_key, SYSTEM_PROMPTS_CONFIDENT["eng_Latn"])
+        else:
+            system = SYSTEM_PROMPTS_HEDGED.get(lang_key, SYSTEM_PROMPTS_HEDGED["eng_Latn"])
+
+        user_prompt = f"{history_context}{context_block}Question: {question}\n\nAnswer:"
 
         client = self._get_client()
         headers = {
@@ -242,7 +304,7 @@ class GroqGenerator:
                     choices = data.get("choices", [])
                     if choices:
                         raw_answer = choices[0].get("message", {}).get("content", "").strip()
-                        clean_answer = clean_and_complete_answer(raw_answer)
+                        clean_answer = clean_and_complete_answer(raw_answer, lang_key)
                         if clean_answer:
                             return {
                                 "answer": clean_answer,

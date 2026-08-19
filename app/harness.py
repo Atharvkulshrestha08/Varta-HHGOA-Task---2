@@ -704,12 +704,12 @@ class PipelineHarness:
 
         source_ids = [e["passage_id"] for e in top_20_evidence[:4]]
 
-        # ── Step 6.5: Anti-Hallucination Confidence Guard & Fallback Logging ──
+        # ── Step 6.5: Anti-Hallucination 3-Tier Confidence Strategy ──
         max_score = max([r.get("score", 0.0) for r in results[:3]], default=0.0)
-        if max_score < 0.52:
-            # Low retrieval confidence: Do NOT hallucinate fabricated facts.
+        if max_score < 0.45:
+            # Tier 1: Strong Refusal (< 0.45) — Zero Hallucination
             logger.warning(
-                f"[LOW CONFIDENCE FALLBACK] Query: '{query_text}' | Score: {max_score:.3f} (< 0.52 floor) | Refusal returned."
+                f"[CONFIDENCE TIER: REFUSAL] Query: '{query_text}' | Score: {max_score:.3f} (< 0.45 floor) | Refusal returned."
             )
             self.analytics.finish_record(record)
             if "hin" in str(language).lower() or has_hindi:
@@ -726,7 +726,7 @@ class PipelineHarness:
                 sources=[],
                 source_ids=[],
                 top_evidence=top_20_evidence,
-                claims_verification="Refused low-confidence query (< 0.52) to guarantee 0% hallucination.",
+                claims_verification="Refused low-confidence query (< 0.45) to guarantee 0% hallucination.",
                 language=language,
                 zone=zone,
                 confidence=round(max_score, 3),
@@ -735,6 +735,14 @@ class PipelineHarness:
                 guardrail_flags=[],
                 guardrail_passed=True,
                 success=True,
+            )
+        elif max_score < 0.58:
+            logger.info(
+                f"[CONFIDENCE TIER: HEDGED] Query: '{query_text}' | Score: {max_score:.3f} (0.45-0.58) | Explicit uncertainty synthesis."
+            )
+        else:
+            logger.info(
+                f"[CONFIDENCE TIER: CONFIDENT] Query: '{query_text}' | Score: {max_score:.3f} (>= 0.58) | High confidence synthesis."
             )
 
         # ── Step 7: Answer Generation (Uses top 3 most relevant passages) ──
