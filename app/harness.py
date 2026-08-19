@@ -138,6 +138,11 @@ class SemanticQACache:
             "response": response,
         })
 
+    def clear(self):
+        """Clears all cached responses."""
+        self._entries.clear()
+        logger.info("Semantic QA Cache cleared.")
+
 
 # ═══════════════════════════════════════════════════════════════════
 # Structured I/O Models (Pydantic)
@@ -651,15 +656,15 @@ class PipelineHarness:
                 is_fallback=False,
             )
 
-        # ── Step 5: Retrieval (with Script-Aware Partition Routing) ──
+        # ── Step 5: Retrieval (with Strict Script-Aware Partition Routing) ──
         has_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in query_text)
         has_hindi = any(0x0900 <= ord(c) <= 0x097F for c in query_text)
-        if has_tamil:
-            allowed_partitions = {"tam_Taml", "eng_Latn"}
-        elif has_hindi:
-            allowed_partitions = {"hin_Deva", "eng_Latn"}
+        if has_tamil or "tam" in str(language).lower():
+            allowed_partitions = {"tam_Taml"}
+        elif has_hindi or "hin" in str(language).lower():
+            allowed_partitions = {"hin_Deva"}
         else:
-            allowed_partitions = {"eng_Latn", "hin_Deva", "tam_Taml"}
+            allowed_partitions = {"eng_Latn"}
 
         logger.info(f"[ROUTING] Query: '{query_text}' | Detected Lang: {language} | Partitions: {allowed_partitions}")
 
@@ -783,13 +788,17 @@ class PipelineHarness:
         try:
             with self.analytics.time_stage(record, "generation"):
                 # Fast Path: Non-LLM Continuous TextRank + SVD Matrix Energy Decomposition (< 4ms)
-                non_llm_res = self.non_llm_synthesizer.synthesize(
-                    query=query_text,
-                    query_vector=query_vector,
-                    passages=results[:3],
-                    embedder=self.vector_store,
-                    max_sentences=2,
-                )
+                # Only use extractive Non-LLM synthesis if retrieval confidence is high (>= 0.58) and strictly language-aligned
+                non_llm_res = {"sentences_selected": 0}
+                if max_score >= 0.58:
+                    non_llm_res = self.non_llm_synthesizer.synthesize(
+                        query=query_text,
+                        query_vector=query_vector,
+                        passages=results[:3],
+                        embedder=self.vector_store,
+                        target_language=language,
+                        max_sentences=2,
+                    )
 
                 if non_llm_res.get("sentences_selected", 0) > 0 and len(non_llm_res.get("answer", "")) > 15:
                     gen_result = {
@@ -800,7 +809,7 @@ class PipelineHarness:
                         "error": None,
                     }
                 else:
-                    # Fallback to LLM if no salient sentence was extracted
+                    # Fallback to LLM generator (hedged synthesis or complex queries)
                     gen_result = await self.generator.generate(
                         question=query_text,
                         passages=results[:3],

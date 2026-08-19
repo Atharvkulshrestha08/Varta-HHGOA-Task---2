@@ -15,6 +15,7 @@ Gemini Flash is chosen for its speed (~100-300ms) and generous
 free tier (1500 requests/day).
 """
 
+import asyncio
 import logging
 import re
 from typing import Optional
@@ -119,7 +120,8 @@ def sanitize_output_for_voice(text: str, language: str = "eng_Latn") -> str:
     if text[-1] in ".!?।॥\"')":
         return text
 
-    for punc in [".", "!", "?", "।", "॥"]:
+    punc_order = ["।", "॥", ".", "!", "?"] if ("hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in text)) else [".", "!", "?", "।", "॥"]
+    for punc in punc_order:
         last_idx = text.rfind(punc)
         if last_idx > 15:
             return text[:last_idx + 1].strip()
@@ -276,6 +278,10 @@ class GroqGenerator:
 
         user_prompt = f"{history_context}{context_block}Question: {question}\n\nAnswer:"
 
+        # For Indic languages (Hindi, Tamil, etc.), Gemini 3.6 Flash provides fluent, culturally accurate synthesis
+        if lang_key != "eng_Latn" and self._gemini_backup:
+            return await self._gemini_backup.generate(question, passages, language, conversation_history)
+
         client = self._get_client()
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -390,17 +396,15 @@ class GeminiGenerator:
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-3.5-flash-lite",
-        max_output_tokens: int = 250,
+        model_name: str = "gemini-3.6-flash",
+        max_output_tokens: int = 1024,
         temperature: float = 0.2,
     ):
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "gemini-3.5-flash-lite",
             "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-flash-latest",
+            "gemini-3.5-flash-lite",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -409,7 +413,7 @@ class GeminiGenerator:
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=120.0)
-            self._client = httpx.AsyncClient(timeout=6.0, limits=limits)
+            self._client = httpx.AsyncClient(timeout=8.0, limits=limits)
         return self._client
 
     async def close(self):
@@ -455,22 +459,24 @@ class GeminiGenerator:
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        if is_indic or (lang_name and "english" not in lang_name.lower()):
-            system = f"""You are VartaLaap, a multilingual voice AI assistant for Indian languages.
-Structure your response in 3 clean parts:
-1. Native Answer: 1-2 accurate, complete sentences in {lang_name} native script (or code block if requested).
-2. 🔤 Pronunciation (Latin alphabet transliteration):
-3. 🌐 English Meaning:
+        lang_key = "eng_Latn"
+        if "hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in question):
+            lang_key = "hin_Deva"
+        elif "tam" in str(language).lower() or any(0x0B80 <= ord(c) <= 0x0BFF for c in question):
+            lang_key = "tam_Taml"
 
-If Context is provided, cite: [Source: Passage 1]. If no context, answer from general knowledge."""
+        max_score = max([p.get("score", 0.0) for p in passages], default=0.0)
+        if max_score >= 0.58:
+            system = SYSTEM_PROMPTS_CONFIDENT.get(lang_key, SYSTEM_PROMPTS_CONFIDENT["eng_Latn"])
         else:
-            system = "You are VartaLaap. Answer concisely in 1-2 complete sentences. If Context is provided, cite [Source: Passage 1]. If no Context, answer directly from general knowledge."
+            system = SYSTEM_PROMPTS_HEDGED.get(lang_key, SYSTEM_PROMPTS_HEDGED["eng_Latn"])
 
         user_prompt = f"{history_context}{context_block}{question}"
 
         client = self._get_client()
         last_err = None
 
+        # 1. High-speed REST API (1024 token budget to support thought tokens)
         for m_name in self.fallback_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.api_key}"
             payload = {

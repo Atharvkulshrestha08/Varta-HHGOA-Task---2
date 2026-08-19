@@ -471,6 +471,14 @@ async def submit_feedback(request: FeedbackRequest):
     }
 
 
+@app.post("/api/cache/clear")
+async def clear_cache():
+    """Clear in-memory semantic QA cache."""
+    if harness and hasattr(harness, "semantic_cache"):
+        harness.semantic_cache.clear()
+    return {"status": "cleared", "message": "Semantic cache flushed successfully"}
+
+
 @app.get("/api/feedback/stats")
 async def feedback_stats():
     """Get HITL feedback statistics."""
