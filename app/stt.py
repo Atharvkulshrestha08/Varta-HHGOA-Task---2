@@ -138,6 +138,15 @@ class SarvamSTTClient:
             self._client = httpx.AsyncClient(timeout=self.timeout, limits=limits)
         return self._client
 
+    async def prewarm(self):
+        """Pre-warm HTTP/2 TLS connection to Sarvam STT to eliminate TLS handshake latency."""
+        try:
+            client = self._get_client()
+            await client.get("https://api.sarvam.ai", headers={"api-subscription-key": self.api_key})
+            logger.info("Sarvam STT connection pre-warmed (TLS cached).")
+        except Exception:
+            pass  # Non-critical
+
     async def close(self):
         """Close persistent HTTP client."""
         if self._client and not self._client.is_closed:

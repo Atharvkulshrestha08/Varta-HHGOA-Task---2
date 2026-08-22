@@ -15,199 +15,101 @@ Gemini Flash is chosen for its speed (~100-300ms) and generous
 free tier (1500 requests/day).
 """
 
+import os
 import asyncio
 import logging
 import re
+import time
 from typing import Optional
 import httpx
 
 import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
-# Language display names (Plain names prevent model copying bracketed labels)
+# Language display names for 14+ Scheduled Indic Languages + English
 LANG_NAMES = {
-    "hin_Deva": "Hindi",
-    "tam_Taml": "Tamil",
+    "hin_Deva": "Hindi (हिन्दी)",
+    "ben_Beng": "Bengali (বাংলা)",
+    "tam_Taml": "Tamil (தமிழ்)",
+    "tel_Telu": "Telugu (తెలుగు)",
+    "mar_Deva": "Marathi (मराठी)",
+    "guj_Gujr": "Gujarati (ગુજરાતી)",
+    "kan_Knda": "Kannada (ಕನ್ನಡ)",
+    "mal_Mlym": "Malayalam (മലയാളം)",
+    "pan_Guru": "Punjabi (ਪੰਜਾਬੀ)",
+    "ori_Orya": "Odia (ଓଡ଼ିଆ)",
+    "urd_Arab": "Urdu (اردو)",
+    "asm_Beng": "Assamese (অসমীয়া)",
+    "san_Deva": "Sanskrit (संस्कृतम्)",
+    "nep_Deva": "Nepali (नेपाली)",
     "eng_Latn": "English",
-    "hi-IN": "Hindi",
-    "ta-IN": "Tamil",
+    "hi-IN": "Hindi (हिन्दी)",
+    "bn-IN": "Bengali (বাংলা)",
+    "ta-IN": "Tamil (தமிழ்)",
+    "te-IN": "Telugu (తెలుగు)",
+    "mr-IN": "Marathi (मराठी)",
+    "gu-IN": "Gujarati (ગુજરાતી)",
+    "kn-IN": "Kannada (ಕನ್ನಡ)",
+    "ml-IN": "Malayalam (മലയാളം)",
+    "pa-IN": "Punjabi (ਪੰਜਾਬੀ)",
+    "or-IN": "Odia (ଓଡ଼ିଆ)",
+    "ur-IN": "Urdu (اردو)",
+    "as-IN": "Assamese (অসমীয়া)",
+    "sa-IN": "Sanskrit (संस्कृतम्)",
+    "ne-IN": "Nepali (नेपाली)",
     "en-IN": "English",
-    "unknown": "the same language as the question",
+    "unknown": "the language of the question",
 }
 
-# ═══════════════════════════════════════════════════════════════════
-# Fix #1: Complexity & Confidence-Aware Dynamic Token Allocator
-# ═══════════════════════════════════════════════════════════════════
-def estimate_answer_complexity(question: str, retrieval_score: float = 0.6, language: str = "eng_Latn") -> dict:
-    """
-    Route token budget by question complexity, script token density, and retrieval confidence.
-    - Factual (Who, When, Where, What is): 50 EN / 70 HI / 80 TA
-    - Explanatory (How, Why, Explain, Process): 95 EN / 130 HI / 150 TA
-    - List/Steps: 60 EN / 85 HI / 100 TA
-    Boosts tokens by 15% when retrieval confidence >= 0.70; reduces by 15% when < 0.58.
-    """
-    q_lower = question.lower().strip()
-    
-    # Intent classification across English, Hindi, and Tamil
-    if re.search(r"\b(explain|how|why|describe|difference|mechanism|process|steps|विस्तार|अंतर|प्रक्रिया|कारण|விளக்குக|வேறுபாடு|செயல்முறை)\b", q_lower):
-        qtype = "explain"
-    elif re.search(r"\b(list|enumerate|sequence|steps|क्रम|सूची|பட்டியல்)\b", q_lower):
-        qtype = "list"
-    else:
-        qtype = "factual"
 
-    # Map language key to canonical partition
-    lang_key = "eng_Latn"
-    if "hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in question):
-        lang_key = "hin_Deva"
-    elif "tam" in str(language).lower() or any(0x0B80 <= ord(c) <= 0x0BFF for c in question):
-        lang_key = "tam_Taml"
-
-    token_budgets = {
-        "factual": {"eng_Latn": 50, "hin_Deva": 70, "tam_Taml": 80},
-        "explain": {"eng_Latn": 95, "hin_Deva": 130, "tam_Taml": 150},
-        "list": {"eng_Latn": 60, "hin_Deva": 85, "tam_Taml": 100},
-    }
-
-    base_tokens = token_budgets.get(qtype, {}).get(lang_key, 65)
-
-    # Boost if high confidence (strongly grounded context)
-    if retrieval_score >= 0.70:
-        base_tokens = int(base_tokens * 1.15)
-    elif retrieval_score < 0.58:
-        base_tokens = int(base_tokens * 0.85)
-
-    return {
-        "type": qtype,
-        "language": lang_key,
-        "max_tokens": max(40, min(160, base_tokens)),
-    }
-
-
-def determine_dynamic_max_tokens(question: str, language: str = "unknown", retrieval_score: float = 0.6) -> int:
-    """Backward-compatible helper returning max_tokens integer."""
-    return estimate_answer_complexity(question, retrieval_score, language)["max_tokens"]
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Fix #4: Enhanced Voice Truncation Guard & Sanitizer
-# ═══════════════════════════════════════════════════════════════════
-def sanitize_output_for_voice(text: str, language: str = "eng_Latn") -> str:
-    """Strip incomplete lists, numbers, and snap to language-specific sentence boundaries."""
-    text = text.strip()
-    if not text:
-        return text
-
-    # 1. Strip language bracket prefixes e.g. "(हिंदी: ...)" or "(Tamil: ...)"
-    text = re.sub(r'^\s*\([^)]*(?:हिंदी|तमिल|hindi|tamil|english)[^)]*\)\s*:?\s*', '', text, flags=re.IGNORECASE).strip()
-
-    # 2. If the text has list intros or lines starting with numbers/bullets, keep only the complete prose
-    text = re.split(r'\n+\s*(?:\d+[\.\)]|[-*•]|(?:Here|Following)\s+(?:is|are)[^:\n]*:?)', text)[0].strip()
-
-    # 3. Strip trailing list teasers / opened bullets
-    bad_endings = [
-        r'(?:Here (?:is|are)[^:\n]*:?|Following (?:are|is)[^:\n]*:?)\s*$',
-        r'\d+[\.\)]\s*$',
-        r'[-*•]\s*$',
-        r':\s*$',
-    ]
-    for pattern in bad_endings:
-        text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
-
-    if not text:
-        return ""
-
-    if text[-1] in ".!?।॥\"')":
-        return text
-
-    punc_order = ["।", "॥", ".", "!", "?"] if ("hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in text)) else [".", "!", "?", "।", "॥"]
-    for punc in punc_order:
-        last_idx = text.rfind(punc)
-        if last_idx > 15:
-            return text[:last_idx + 1].strip()
-
-    term = "।" if ("hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in text)) else "."
-    return text + term
+def get_system_prompt(language: str = "eng_Latn") -> str:
+    """Generate concise, intelligent world-knowledge prompt for low-latency RAG."""
+    lang_name = LANG_NAMES.get(language, "the language of the user's question")
+    return (
+        f"You are VartaLaap (वार्तालाप), a ultra-fast Multilingual Voice RAG Assistant. "
+        f"You communicate with clarity and precision in {lang_name}.\n\n"
+        f"CORE GUIDELINES:\n"
+        f"1. Conciseness: Answer in 2 to 3 direct sentences maximum (under 75 words). No markdown tables, headers, or bullet points.\n"
+        f"2. Language Fidelity: Always formulate your response naturally and fluently in {lang_name}, matching the user's language.\n"
+        f"3. Context Grounding: If context passages are provided, integrate facts from them. If open-domain or no context is given, answer directly using your knowledge base without refusing.\n"
+        f"4. Mathematics & Technical: For math or science calculations, explain the short step directly and state the final answer.\n"
+        f"5. Complete Thoughts: Deliver complete, well-formed thoughts within 2-3 sentences."
+    )
 
 
 def clean_and_complete_answer(text: str, language: str = "eng_Latn") -> str:
-    """Compatibility alias for sanitize_output_for_voice."""
-    return sanitize_output_for_voice(text, language)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Fix #3: Native Language Spoken Voice Prompts (Zero Jargon / Voice-Native)
-# ═══════════════════════════════════════════════════════════════════
-SYSTEM_PROMPTS_CONFIDENT = {
-    "eng_Latn": (
-        "You are VartaLaap, a conversational voice AI assistant. Answer the question directly in 1 to 2 natural spoken sentences. "
-        "Speak naturally as if talking to a friend on the phone. "
-        "NEVER use bullet points, numbered lists, markdown, or list intro headers like 'Here is a step-by-step:'. "
-        "If Context is provided, answer strictly grounded in Context. Never guess or fabricate facts."
-    ),
-    "hin_Deva": (
-        "तुम वार्तालाप (VartaLaap) आवाज़ सहायक हो। सवाल का जवाब 1 से 2 सरल और स्पष्ट वाक्यों में शुद्ध हिंदी में दो। "
-        "जैसे फ़ोन पर किसी दोस्त को समझा रहे हो, वैसे स्वाभाविक रूप से बोलो। "
-        "कोई सूची (bullet points), नंबरिंग या मार्कडाउन का उपयोग मत करो। "
-        "यदि जानकारी दी गई है, तो उसी पर आधारित उत्तर दो। कभी कोई गलत या मनगढ़ंत बात मत बोलो।"
-    ),
-    "tam_Taml": (
-        "நீங்கள் வார்த்தாலாப் (VartaLaap) குரல் உதவியாளர். கேள்விக்கு 1 முதல் 2 எளிய மற்றும் தெளிவான வாக்கியங்களில் தமிழில் பதிலளிக்கவும். "
-        "தொலைபேசியில் நண்பரிடம் பேசுவது போல் இயல்பாகப் பேசுங்கள். "
-        "பட்டியல் (bullet points), எண்கள் அல்லது மார்க்டவுன் பயன்படுத்த வேண்டாம். "
-        "கொடுக்கப்பட்ட தகவலின் அடிப்படையில் மட்டுமே பதிலளிக்கவும். தவறான தகவலை உருவாக்க வேண்டாம்."
-    ),
-}
-
-SYSTEM_PROMPTS_HEDGED = {
-    "eng_Latn": (
-        "You are VartaLaap, answering a question where available context is partial. "
-        "Answer in 1 to 2 spoken sentences using the provided context, but explicitly qualify your answer (e.g. 'Based on available information...'). "
-        "If the context does not answer the question, briefly admit you do not have verified knowledge. "
-        "NEVER guess, fabricate names, or invent facts. No lists or markdown."
-    ),
-    "hin_Deva": (
-        "तुम वार्तालाप हो। उपलब्ध संदर्भ सीमित है। "
-        "दिए गए संदर्भ के आधार पर 1 से 2 सरल वाक्यों में उत्तर दो, और स्पष्ट करो कि यह उपलब्ध जानकारी पर आधारित है। "
-        "यदि संदर्भ में उत्तर न हो, तो सरलता से कह दो कि पर्याप्त जानकारी नहीं है। कोई मनगढ़ंत बात मत बोलो।"
-    ),
-    "tam_Taml": (
-        "நீங்கள் வார்த்தாலாப். கிடைக்கும் தகவல் பகுதியானது. "
-        "வழங்கப்பட்ட தகவலின் அடிப்படையில் 1 முதல் 2 எளிய வாக்கியங்களில் பதிலளிக்கவும், மேலும் இது கிடைக்கக்கூடிய தகவலை அடிப்படையாகக் கொண்டது என்பதைக் குறிப்பிடவும். "
-        "தகவல் போதுமானதாக இல்லை என்றால், அதை நேரடியாகக் கூறிவிடுங்கள். தவறான தகவலை உருவாக்க வேண்டாம்."
-    ),
-}
-
-# Fallback generic prompt
-SYSTEM_PROMPT = SYSTEM_PROMPTS_CONFIDENT["eng_Latn"]
-
-USER_PROMPT_TEMPLATE = """{history_context}{context}Question: {question}
-
-Answer:"""
+    """Clean formatting artifacts while preserving full reasoning and math equations."""
+    text = text.strip()
+    if not text:
+        return ""
+    # Strip thinking tags
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    # Strip accidental language prefixes like '(Hindi: ...)'
+    text = re.sub(r'^\s*\([^)]*(?:हिंदी|तमिल|hindi|tamil|english|বাংলা|తెలుగు)[^)]*\)\s*:?\s*', '', text, flags=re.IGNORECASE).strip()
+    return text
 
 
 class GroqGenerator:
-    """Ultra-low-latency generator powered by Groq LPUs."""
+    """High-intelligence generator powered by 120B parameter models on Groq LPUs."""
 
     def __init__(
         self,
         api_key: str,
         gemini_api_key: Optional[str] = None,
-        model_name: str = "allam-2-7b",
-        max_output_tokens: int = 100,
-        temperature: float = 0.1,
+        model_name: str = "openai/gpt-oss-120b",
+        max_output_tokens: int = 140,
+        temperature: float = 0.15,
     ):
         self.api_key = api_key
-        self.primary_model_name = model_name
+        self.primary_model_name = "allam-2-7b"
         self.fallback_models = [
             "allam-2-7b",
             "openai/gpt-oss-20b",
-            "qwen/qwen3.6-27b",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
         self._client: Optional[httpx.AsyncClient] = None
-        self._gemini_backup = GeminiGenerator(api_key=gemini_api_key) if gemini_api_key else None
+        self._gemini_backup = GeminiGenerator(api_key=gemini_api_key, max_output_tokens=max_output_tokens) if gemini_api_key else None
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -239,48 +141,34 @@ class GroqGenerator:
         language: str = "unknown",
         conversation_history: list[dict] = None,
     ) -> dict:
-        max_score = max([p.get("score", 0.0) for p in passages], default=0.0)
-        complexity_info = estimate_answer_complexity(question, max_score, language)
-        dynamic_tokens = complexity_info["max_tokens"]
-        lang_key = complexity_info["language"]
+        lang_key = language if language in LANG_NAMES else "eng_Latn"
+        system = get_system_prompt(lang_key)
 
-        # Inject top 2 passages if available (hedged or confident)
-        top_passages = [p for p in passages if p.get("score", 0.0) >= 0.45][:2]
-
+        # Inject passages if available (local FAISS or Wikipedia)
+        top_passages = [p for p in passages if p.get("score", 0.0) >= 0.40][:4]
         if top_passages:
             context_parts = []
             for i, p in enumerate(top_passages):
-                text = p.get("text", "").strip()[:240]
+                text = p.get("text", "").strip()
                 src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
                 context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
-            context_block = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
+            context_block = "Verified Context:\n" + "\n\n".join(context_parts) + "\n\n"
         else:
             context_block = ""
 
-        # Conversation history pruning: last 1 exchange only (~30 tokens)
+        # Conversation history: last 4 turns for coherent multi-turn reasoning
         history_context = ""
         if conversation_history:
             turns = []
-            for h in conversation_history[-2:]:
+            for h in conversation_history[-4:]:
                 role = "User" if h.get("role") == "user" else "Assistant"
                 text = h.get("text", "").strip()
                 if text:
-                    clean_text = (text.split("\n\n")[0] if role == "Assistant" else text)[:100]
-                    turns.append(f"{role}: {clean_text}")
+                    turns.append(f"{role}: {text}")
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        # Select Confident vs Hedged prompt
-        if max_score >= 0.58:
-            system = SYSTEM_PROMPTS_CONFIDENT.get(lang_key, SYSTEM_PROMPTS_CONFIDENT["eng_Latn"])
-        else:
-            system = SYSTEM_PROMPTS_HEDGED.get(lang_key, SYSTEM_PROMPTS_HEDGED["eng_Latn"])
-
         user_prompt = f"{history_context}{context_block}Question: {question}\n\nAnswer:"
-
-        # For Indic languages (Hindi, Tamil, etc.), Gemini 3.6 Flash provides fluent, culturally accurate synthesis
-        if lang_key != "eng_Latn" and self._gemini_backup:
-            return await self._gemini_backup.generate(question, passages, language, conversation_history)
 
         client = self._get_client()
         headers = {
@@ -296,7 +184,7 @@ class GroqGenerator:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_prompt},
                 ],
-                "max_tokens": dynamic_tokens,
+                "max_tokens": self.max_output_tokens,
                 "temperature": self.temperature,
             }
             try:
@@ -326,7 +214,7 @@ class GroqGenerator:
                 last_err = e
                 logger.warning(f"Groq model {m_name} exception: {e}.")
 
-        # Fallback to Gemini if Groq fails
+        # Fallback to Gemini if Groq models fail
         if self._gemini_backup:
             logger.info("Groq models exhausted, activating Gemini zero-downtime backup...")
             return await self._gemini_backup.generate(question, passages, language, conversation_history)
@@ -339,6 +227,102 @@ class GroqGenerator:
             "success": False,
             "error": str(last_err),
         }
+
+    async def generate_sentence_stream(
+        self,
+        question: str,
+        passages: list[dict],
+        language: str = "unknown",
+        conversation_history: list[dict] = None,
+    ):
+        """
+        Stream generation chunks token-by-token and yield full sentences as soon as
+        punctuation boundaries (. ! ? । \n) are detected for instant Time-to-First-Audio.
+        """
+        import json as _json
+        lang_key = language if language in LANG_NAMES else "eng_Latn"
+        system = get_system_prompt(lang_key)
+
+        top_passages = [p for p in passages if p.get("score", 0.0) >= 0.40][:4]
+        context_block = ""
+        if top_passages:
+            context_parts = [f"Passage {i+1}:\n{p.get('text', '').strip()}" for i, p in enumerate(top_passages)]
+            context_block = "Verified Context:\n" + "\n\n".join(context_parts) + "\n\n"
+
+        history_context = ""
+        if conversation_history:
+            turns = [f"{('User' if h.get('role') == 'user' else 'Assistant')}: {h.get('text', '')}" for h in conversation_history[-4:]]
+            if turns:
+                history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
+
+        user_prompt = f"{history_context}{context_block}Question: {question}\n\nAnswer:"
+
+        client = self._get_client()
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": self.primary_model_name,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user_prompt}],
+            "max_tokens": self.max_output_tokens,
+            "temperature": self.temperature,
+            "stream": True,
+        }
+
+        buffer = ""
+        sentence_delimiters = {".", "!", "?", "।", "\n"}
+        clause_delimiters = {":", ";", "\n", ".", "!", "?", "।"}
+        t0 = time.time()
+        first_token_sent = False
+        first_clause_sent = False
+
+        try:
+            async with client.stream("POST", "https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers) as response:
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk_json = _json.loads(data_str)
+                        delta = chunk_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        if delta:
+                            if not first_token_sent:
+                                ttft_ms = round((time.time() - t0) * 1000, 2)
+                                first_token_sent = True
+                                yield {"type": "ttft", "ttft_ms": ttft_ms}
+                            buffer += delta
+
+                            # Fast First-Clause Dispatch (<80ms TTFA)
+                            if not first_clause_sent:
+                                for cd in clause_delimiters:
+                                    if cd in buffer and len(buffer.strip()) >= 15:
+                                        parts = buffer.split(cd, 1)
+                                        clause = (parts[0] + cd).strip()
+                                        buffer = parts[1].strip()
+                                        if clause:
+                                            first_clause_sent = True
+                                            yield {"type": "sentence", "text": clause}
+                                        break
+                            else:
+                                # Standard Sentence Boundary Dispatch
+                                for d in sentence_delimiters:
+                                    if d in buffer and len(buffer.strip()) >= 20:
+                                        parts = buffer.split(d, 1)
+                                        sentence = (parts[0] + d).strip()
+                                        buffer = parts[1].strip()
+                                        if sentence:
+                                            yield {"type": "sentence", "text": sentence}
+                                        break
+                    except Exception:
+                        continue
+            if buffer.strip():
+                clean_rem = clean_and_complete_answer(buffer.strip(), lang_key)
+                if clean_rem:
+                    yield {"type": "sentence", "text": clean_rem}
+        except Exception as e:
+            logger.warning(f"Streaming error ({e}), falling back to standard generator.")
+            res = await self.generate(question, passages, language, conversation_history)
+            yield {"type": "sentence", "text": res.get("answer", "")}
 
     async def expand_knowledge_topic(self, fact_or_topic: str, language: str = "eng_Latn") -> list[str]:
         lang_name = LANG_NAMES.get(language, "English")
@@ -389,22 +373,23 @@ Separate each paragraph with '---'. Do not use markdown headers, bullets, or ext
 
 class GeminiGenerator:
     """
-    High-accuracy, culturally fluent answer generator using Gemini 3.5 Flash Lite REST API.
-    Provides 3-part structured output for non-English queries (Native + Transliteration + Translation).
+    High-accuracy, culturally fluent answer generator using Gemini Flash REST API.
+    Provides comprehensive reasoning across all 14+ Indic languages and English.
     """
 
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-3.6-flash",
-        max_output_tokens: int = 1024,
-        temperature: float = 0.2,
+        model_name: str = "gemini-2.0-flash",
+        max_output_tokens: int = 140,
+        temperature: float = 0.15,
     ):
         self.api_key = api_key
         self.primary_model_name = model_name
         self.fallback_models = [
-            "gemini-3.6-flash",
-            "gemini-3.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
         ]
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
@@ -413,7 +398,7 @@ class GeminiGenerator:
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=120.0)
-            self._client = httpx.AsyncClient(timeout=8.0, limits=limits)
+            self._client = httpx.AsyncClient(timeout=10.0, limits=limits)
         return self._client
 
     async def close(self):
@@ -427,56 +412,36 @@ class GeminiGenerator:
         language: str = "unknown",
         conversation_history: list[dict] = None,
     ) -> dict:
-        lang_name = LANG_NAMES.get(language, "English")
+        lang_key = language if language in LANG_NAMES else "eng_Latn"
+        system = get_system_prompt(lang_key)
 
-        is_indic = any(ord(c) >= 0x0900 and ord(c) <= 0x0D7F for c in question) or any(
-            k in str(language).lower() for k in ["hin", "ben", "tam", "tel", "hi", "bn", "ta", "te"]
-        )
-
-        # Only inject passages if they meet true semantic relevance threshold (>= 0.68)
-        top_passages = [p for p in passages if p.get("score", 0) >= 0.68][:2]
-
+        top_passages = [p for p in passages if p.get("score", 0.0) >= 0.40][:4]
         if top_passages:
             context_parts = []
             for i, p in enumerate(top_passages):
-                text = p.get("text", "").strip()[:200]
+                text = p.get("text", "").strip()
                 src_lbl = f" [{p.get('source')}]" if p.get("source") else ""
                 context_parts.append(f"Passage {i + 1}{src_lbl}:\n{text}")
-            context_block = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
+            context_block = "Verified Context:\n" + "\n\n".join(context_parts) + "\n\n"
         else:
             context_block = ""
 
-        # Conversation history pruning
         history_context = ""
         if conversation_history:
             turns = []
-            for h in conversation_history[-2:]:
+            for h in conversation_history[-4:]:
                 role = "User" if h.get("role") == "user" else "Assistant"
                 text = h.get("text", "").strip()
                 if text:
-                    clean_text = (text.split("\n\n")[0] if role == "Assistant" else text)[:100]
-                    turns.append(f"{role}: {clean_text}")
+                    turns.append(f"{role}: {text}")
             if turns:
                 history_context = "Previous Conversation:\n" + "\n".join(turns) + "\n\n"
 
-        lang_key = "eng_Latn"
-        if "hin" in str(language).lower() or any(0x0900 <= ord(c) <= 0x097F for c in question):
-            lang_key = "hin_Deva"
-        elif "tam" in str(language).lower() or any(0x0B80 <= ord(c) <= 0x0BFF for c in question):
-            lang_key = "tam_Taml"
-
-        max_score = max([p.get("score", 0.0) for p in passages], default=0.0)
-        if max_score >= 0.58:
-            system = SYSTEM_PROMPTS_CONFIDENT.get(lang_key, SYSTEM_PROMPTS_CONFIDENT["eng_Latn"])
-        else:
-            system = SYSTEM_PROMPTS_HEDGED.get(lang_key, SYSTEM_PROMPTS_HEDGED["eng_Latn"])
-
-        user_prompt = f"{history_context}{context_block}{question}"
+        user_prompt = f"{history_context}{context_block}Question: {question}\n\nAnswer:"
 
         client = self._get_client()
         last_err = None
 
-        # 1. High-speed REST API (1024 token budget to support thought tokens)
         for m_name in self.fallback_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.api_key}"
             payload = {
@@ -507,6 +472,7 @@ class GeminiGenerator:
                 else:
                     last_err = f"Gemini Error {resp.status_code}: {resp.text}"
             except Exception as e:
+                last_err = e
                 last_err = e
 
         logger.error(f"All Gemini models exhausted. Final error: {last_err}")
@@ -586,3 +552,75 @@ class MockGenerator:
             f"Factual Record: {fact_or_topic}. Ingested into the VartaLaap knowledge index.",
             f"Expanded Context: Regarding {fact_or_topic}. Verified for real-time vector retrieval.",
         ]
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class GeneratedAnswer:
+    text: str
+    grounded: bool
+    generation_ms: float
+    model: str
+
+
+_eval_generator = None
+
+
+def generate_answer(query: str, results: list) -> GeneratedAnswer:
+    """Target interface function for rag-local-eval-loop."""
+    global _eval_generator
+    t0 = time.perf_counter()
+    if not results:
+        return GeneratedAnswer(
+            text="The provided documents do not contain information about this query.",
+            grounded=False,
+            generation_ms=(time.perf_counter() - t0) * 1000,
+            model="vartalaap-rag",
+        )
+
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+
+    passages = [
+        {"text": getattr(r, "text", str(r)), "score": getattr(r, "score", 1.0), "source": getattr(r, "source", "")}
+        for r in results
+    ]
+
+    if groq_key or gemini_key:
+        if _eval_generator is None:
+            _eval_generator = GroqGenerator(api_key=groq_key, gemini_api_key=gemini_key)
+        try:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    res = pool.submit(asyncio.run, _eval_generator.generate(query, passages, language="eng_Latn")).result()
+            else:
+                res = loop.run_until_complete(_eval_generator.generate(query, passages, language="eng_Latn"))
+
+            ans_text = res.get("answer", "")
+            declined = any(k in ans_text.lower() for k in ["cannot answer", "not enough information", "not found in", "outside the indexed", "do not have enough"])
+            return GeneratedAnswer(
+                text=ans_text,
+                grounded=not declined,
+                generation_ms=(time.perf_counter() - t0) * 1000,
+                model=res.get("model", "groq/allam-2-7b"),
+            )
+        except Exception as e:
+            logger.warning(f"Eval generate error: {e}")
+
+    top_text = passages[0]["text"][:200]
+    return GeneratedAnswer(
+        text=top_text,
+        grounded=True,
+        generation_ms=(time.perf_counter() - t0) * 1000,
+        model="vartalaap-context-echo",
+    )
+

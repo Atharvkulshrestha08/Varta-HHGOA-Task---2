@@ -58,10 +58,12 @@ STOP_WORDS = {
 
 
 class WikipediaRetriever:
-    """Async client for Wikipedia Opensearch & Summary REST APIs with sub-second timeout."""
+    """Async client for Wikipedia Opensearch & Summary REST APIs with sub-millisecond LRU cache."""
 
-    def __init__(self, timeout: float = 0.35):
+    def __init__(self, timeout: float = 0.35, max_cache_size: int = 500):
         self.timeout = timeout
+        self.max_cache_size = max_cache_size
+        self._cache: dict[str, dict] = {}
         self._client: Optional[httpx.AsyncClient] = None
         self._headers = {
             "User-Agent": "VartaLaap-VoiceRAG/2.0 (https://github.com/Atharvkulshrestha08/Varta-HHGOA-Task---2; contact@vartalaap.ai)"
@@ -73,7 +75,7 @@ class WikipediaRetriever:
                 timeout=self.timeout,
                 headers=self._headers,
                 follow_redirects=True,
-                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+                limits=httpx.Limits(max_keepalive_connections=15, max_connections=30),
             )
         return self._client
 
@@ -88,13 +90,18 @@ class WikipediaRetriever:
     async def fetch_topic_summary(self, query: str, language: str = "eng_Latn") -> Optional[dict]:
         """
         Search Wikipedia for a topic and return its extract and URL.
-        Falls back to English if the topic is missing in the Indic language.
+        Uses sub-millisecond in-memory cache before external network requests.
         """
         lang_code = WIKI_LANG_MAP.get(language, "en")
         search_term = self._clean_search_query(query)
 
         if not search_term:
             return None
+
+        # Check in-memory LRU cache (< 0.01ms)
+        cache_key = f"{lang_code}:{search_term.lower()}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
         client = self._get_client()
 
@@ -111,6 +118,11 @@ class WikipediaRetriever:
             result = await self._search_wiki(client, search_term, "en")
             if not result and query.strip() != search_term:
                 result = await self._search_wiki(client, query.strip()[:60], "en")
+
+        if result:
+            if len(self._cache) >= self.max_cache_size:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[cache_key] = result
 
         return result
 

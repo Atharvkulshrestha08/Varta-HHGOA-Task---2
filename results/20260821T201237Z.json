@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "target_root": "C:\\Users\\Atharv\\OneDrive\\Desktop\\HHG\\Task-2",
+    "generation_backend": "unknown",
+    "generation_model_hint": "unknown",
+    "language": "hin",
+    "split": "validation",
+    "num_answerable": 2,
+    "num_unanswerable": 2,
+    "num_examples": 4,
+    "num_chunks": 85,
+    "top_k": 5,
+    "seed": 42,
+    "num_errored": 0
+  },
+  "retrieval": {
+    "check": "retrieval (reference-based)",
+    "num_evaluated": 2,
+    "top_k": 5,
+    "cross_lingual": {
+      "recall_at_k": {
+        "1": 0.5,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.75
+    },
+    "same_language": {
+      "recall_at_k": {
+        "1": 0.5,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.75
+    }
+  },
+  "faithfulness": {
+    "check": "faithfulness / hallucination (reference-free, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "correctness": {
+    "check": "correctness (reference-based, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "reliability": {
+    "check": "reliability / \"lying factor\" (answerable-vs-answered 2x2)",
+    "num_answerable_evaluated": 2,
+    "num_unanswerable_evaluated": 2,
+    "false_refusal_rate": 0.0,
+    "false_refusal_examples": [],
+    "false_confidence_rate": 1.0,
+    "false_confidence_examples": [
+      {
+        "query": "hexadecimal numbers to binary numbers",
+        "fabricated_answer": "To convert binary numbers into hexadecimal numbers we must first divide the binary number up into a 4-bit binary word which can have any value from 010 ( 00002 ) to 1510 ( 11112 ) representing the hex"
+      },
+      {
+        "query": "decreasing the average cost of each good as output increases",
+        "fabricated_answer": "The difference between the cost of a DVD and the cost of watching the movie at the movie theater, The cost of the television, DVD player, and DVDs divided by the total number of DVDs, The cost of one "
+      }
+    ]
+  },
+  "latency": {
+    "check": "latency",
+    "num_evaluated": 4,
+    "embed": {
+      "avg_ms": 0.25,
+      "p50_ms": 0.21,
+      "p95_ms": 0.37,
+      "p99_ms": 0.37
+    },
+    "search": {
+      "avg_ms": 0.15,
+      "p50_ms": 0.03,
+      "p95_ms": 0.56,
+      "p99_ms": 0.72
+    },
+    "retrieval_total": {
+      "avg_ms": 0.34,
+      "p50_ms": 0.34,
+      "p95_ms": 0.46,
+      "p99_ms": 0.46
+    },
+    "generation": {
+      "avg_ms": 0.05,
+      "p50_ms": 0.05,
+      "p95_ms": 0.06,
+      "p99_ms": 0.07
+    },
+    "retrieval_latency_budget_ms": 50.0,
+    "retrieval_within_budget": true,
+    "generation_latency_target_ms": 1500.0,
+    "generation_within_target": true
+  }
+}

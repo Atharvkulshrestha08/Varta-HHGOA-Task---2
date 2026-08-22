@@ -9,6 +9,8 @@ build/
 
 # Environment
 .env
+*.env
+trial_1/.env
 venv/
 .venv/
 
@@ -16,6 +18,7 @@ venv/
 *.parquet
 data/*.parquet
 data/raw/
+eval_loop_temp/
 build/
 nul
 

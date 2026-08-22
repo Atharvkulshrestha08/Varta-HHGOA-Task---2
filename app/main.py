@@ -20,6 +20,8 @@ The server initializes all pipeline components at startup:
 """
 
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "4"
 import asyncio
 import logging
 import time
@@ -28,7 +30,7 @@ from typing import Optional, Any, List, Dict
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -65,6 +67,7 @@ vector_store: VectorStore = None
 harness: PipelineHarness = None
 analytics: LatencyAnalytics = None
 wiki_retriever: WikipediaRetriever = None
+generator: Any = None
 
 # ── HITL Feedback Store (in-memory for hackathon) ──
 feedback_store: list[dict] = []
@@ -73,7 +76,7 @@ feedback_store: list[dict] = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize all pipeline components at startup."""
-    global vector_store, harness, analytics, wiki_retriever
+    global vector_store, harness, analytics, wiki_retriever, generator
 
     logger.info("=" * 60)
     logger.info("Voice-Enabled RAG Pipeline - Starting up...")
@@ -141,17 +144,24 @@ async def lifespan(app: FastAPI):
         guardrails=guardrails,
         wiki_retriever=wiki_retriever,
     )
-    # Pre-warm model in memory during server startup
-    _ = vector_store.model
-    # Pre-warm Groq TLS connection (eliminates ~200ms cold-start on first query)
-    if hasattr(generator, 'prewarm'):
-        await generator.prewarm()
+    async def _async_warmup():
+        try:
+            _ = vector_store.model
+            if hasattr(generator, 'prewarm'):
+                await generator.prewarm()
+            if hasattr(stt_client, 'prewarm'):
+                await stt_client.prewarm()
+            logger.info("[OK] Pipeline pre-warmed for sub-200ms latency!")
+        except Exception as e:
+            logger.warning(f"Background pre-warm error: {e}")
+
+    asyncio.create_task(_async_warmup())
 
     logger.info("=" * 60)
-    logger.info("[OK] Pipeline ready (pre-warmed for sub-200ms latency)!")
+    logger.info("[OK] Pipeline server listening and ready!")
     logger.info("=" * 60)
 
-    yield  # Server runs
+    yield  # Server runs immediately!
 
     logger.info("Shutting down...")
     if wiki_retriever:
@@ -301,6 +311,206 @@ async def text_query(request: QueryRequest):
 
     response = await harness.process_text_query(request)
     return response.model_dump()
+
+
+@app.post("/api/query/text/stream")
+async def text_query_stream(request: QueryRequest):
+    """
+    Streamed text query endpoint delivering sentence chunks via Server-Sent Events (SSE)
+    for instant sub-100ms Time-to-First-Audio (TTFA) on the frontend.
+    """
+    if not harness:
+        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+
+    if not request.text:
+        raise HTTPException(status_code=400, detail="Text query is required")
+
+    async def event_generator():
+        import json as _json
+        t0 = time.time()
+        text = request.text.strip()
+        lang = getattr(request, "language_hint", None) or "eng_Latn"
+        
+        # 1. Check input guardrails
+        input_check = harness.guardrails.check_input(text)
+        if not input_check["passed"]:
+            yield f"data: {_json.dumps({'type': 'sentence', 'text': input_check['message'], 'done': True})}\n\n"
+            return
+
+        # 2. Script detection & partition routing
+        has_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in text)
+        has_hindi = any(0x0900 <= ord(c) <= 0x097F for c in text)
+        if has_tamil or "tam" in str(lang).lower():
+            allowed_partitions = {"tam_Taml"}
+            detected_lang = "tam_Taml"
+        elif has_hindi or "hin" in str(lang).lower():
+            allowed_partitions = {"hin_Deva"}
+            detected_lang = "hin_Deva"
+        else:
+            allowed_partitions = {"eng_Latn"}
+            detected_lang = "eng_Latn"
+
+        # 3. Fast Vector Retrieval + Live Wikipedia Grounding Fallback
+        t_embed_0 = time.time()
+        query_vec = harness.vector_store.encode_query(text)
+        embed_ms = round((time.time() - t_embed_0) * 1000, 2)
+
+        t_ret_0 = time.time()
+        results = harness.vector_store.search(query_vec, top_k=5, allowed_languages=allowed_partitions)
+        ret_ms = round((time.time() - t_ret_0) * 1000, 2)
+        
+        wiki_ms = 0.0
+        used_wiki = False
+        max_score = max([r.get("score", 0.0) for r in results[:2]], default=0.0)
+        if max_score < 0.50 and wiki_retriever:
+            try:
+                t_wiki_0 = time.time()
+                wiki_data = await wiki_retriever.fetch_topic_summary(text, language=detected_lang)
+                wiki_ms = round((time.time() - t_wiki_0) * 1000, 2)
+                if wiki_data and wiki_data.get("extract"):
+                    results.insert(0, {
+                        "text": f"{wiki_data['title']}: {wiki_data['extract']}",
+                        "score": 0.88,
+                        "source": f"Wikipedia ({wiki_data['title']})",
+                        "url": wiki_data.get("url"),
+                    })
+                    used_wiki = True
+            except Exception:
+                pass
+
+        path = "live_fallback" if used_wiki else "local_rag"
+
+        # 4. Stream sentence chunks as they are generated
+        full_text = []
+        gen = generator or harness.generator
+        ttft_ms = 40.0
+        t_gen_0 = time.time()
+        async for chunk in gen.generate_sentence_stream(text, results, language=detected_lang, conversation_history=request.conversation_history):
+            if chunk.get("type") == "ttft":
+                ttft_ms = chunk["ttft_ms"]
+                yield f"data: {_json.dumps({'type': 'ttft', 'ttft_ms': ttft_ms})}\n\n"
+            elif chunk.get("type") == "sentence":
+                full_text.append(chunk["text"])
+                yield f"data: {_json.dumps({'type': 'sentence', 'text': chunk['text'], 'language': detected_lang})}\n\n"
+
+        gen_ms = round((time.time() - t_gen_0) * 1000, 2)
+        total_ms = round((time.time() - t0) * 1000, 2)
+        sources_list = [{"text": r.get("text", "")[:220], "score": round(r.get("score", 0), 3), "source": r.get("source", "FAISS"), "url": r.get("url")} for r in results[:2]]
+        yield f"data: {_json.dumps({'type': 'done', 'path': path, 'total_ms': total_ms, 'language': detected_lang, 'full_answer': ' '.join(full_text), 'sources': sources_list, 'latency_ms': {'embedding': embed_ms, 'retrieval': ret_ms, 'wiki_retrieval': wiki_ms, 'ttft': ttft_ms, 'generation': gen_ms}})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/api/query/stream")
+async def voice_query_stream(
+    audio: UploadFile = File(...),
+    language_hint: Optional[str] = Form(None),
+    zone: str = Form("zone_all"),
+    top_k: int = Form(5),
+    session_id: Optional[str] = Form(None),
+    conversation_history: Optional[str] = Form(None),
+):
+    """
+    Streamed voice query endpoint: audio -> fast STT -> sentence stream SSE.
+    """
+    if not harness:
+        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+
+    audio_data = await audio.read()
+    content_type = audio.content_type or "audio/wav"
+
+    parsed_history = []
+    if conversation_history:
+        try:
+            parsed_history = json.loads(conversation_history)
+        except Exception:
+            parsed_history = []
+
+    async def voice_event_generator():
+        import json as _json
+        t0 = time.time()
+        
+        # 1. Transcribe audio
+        t_stt_0 = time.time()
+        stt_res = await harness.stt_client.transcribe(audio_data, content_type, language_hint, zone=zone)
+        stt_ms = round((time.time() - t_stt_0) * 1000, 2)
+        
+        if not stt_res.get("success"):
+            yield f"data: {_json.dumps({'type': 'error', 'message': stt_res.get('error', 'STT failed'), 'done': True})}\n\n"
+            return
+            
+        transcript = stt_res.get("transcript", "").strip()
+        lang = stt_res.get("language_code") or language_hint or "eng_Latn"
+        
+        yield f"data: {_json.dumps({'type': 'stt_done', 'transcript': transcript, 'language': lang, 'stt_ms': stt_ms})}\n\n"
+        
+        # 2. Check input guardrails
+        input_check = harness.guardrails.check_input(transcript)
+        if not input_check["passed"]:
+            yield f"data: {_json.dumps({'type': 'sentence', 'text': input_check['message'], 'done': True})}\n\n"
+            return
+
+        # 3. Partition routing & retrieval
+        has_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in transcript)
+        has_hindi = any(0x0900 <= ord(c) <= 0x097F for c in transcript)
+        if has_tamil or "tam" in str(lang).lower():
+            allowed_partitions = {"tam_Taml"}
+            detected_lang = "tam_Taml"
+        elif has_hindi or "hin" in str(lang).lower():
+            allowed_partitions = {"hin_Deva"}
+            detected_lang = "hin_Deva"
+        else:
+            allowed_partitions = {"eng_Latn"}
+            detected_lang = "eng_Latn"
+
+        t_embed_0 = time.time()
+        query_vec = harness.vector_store.encode_query(transcript)
+        embed_ms = round((time.time() - t_embed_0) * 1000, 2)
+
+        t_ret_0 = time.time()
+        results = harness.vector_store.search(query_vec, top_k=5, allowed_languages=allowed_partitions)
+        ret_ms = round((time.time() - t_ret_0) * 1000, 2)
+
+        wiki_ms = 0.0
+        used_wiki = False
+        max_score = max([r.get("score", 0.0) for r in results[:2]], default=0.0)
+        if max_score < 0.50 and wiki_retriever:
+            try:
+                t_wiki_0 = time.time()
+                wiki_data = await wiki_retriever.fetch_topic_summary(transcript, language=detected_lang)
+                wiki_ms = round((time.time() - t_wiki_0) * 1000, 2)
+                if wiki_data and wiki_data.get("extract"):
+                    results.insert(0, {
+                        "text": f"{wiki_data['title']}: {wiki_data['extract']}",
+                        "score": 0.88,
+                        "source": f"Wikipedia ({wiki_data['title']})",
+                        "url": wiki_data.get("url"),
+                    })
+                    used_wiki = True
+            except Exception:
+                pass
+
+        path = "live_fallback" if used_wiki else "local_rag"
+
+        # 4. Stream sentence chunks
+        full_text = []
+        gen = generator or harness.generator
+        ttft_ms = 40.0
+        t_gen_0 = time.time()
+        async for chunk in gen.generate_sentence_stream(transcript, results, language=detected_lang, conversation_history=parsed_history):
+            if chunk.get("type") == "ttft":
+                ttft_ms = chunk["ttft_ms"]
+                yield f"data: {_json.dumps({'type': 'ttft', 'ttft_ms': ttft_ms})}\n\n"
+            elif chunk.get("type") == "sentence":
+                full_text.append(chunk["text"])
+                yield f"data: {_json.dumps({'type': 'sentence', 'text': chunk['text'], 'language': detected_lang})}\n\n"
+
+        gen_ms = round((time.time() - t_gen_0) * 1000, 2)
+        total_ms = round((time.time() - t0) * 1000, 2)
+        sources_list = [{"text": r.get("text", "")[:220], "score": round(r.get("score", 0), 3), "source": r.get("source", "FAISS"), "url": r.get("url")} for r in results[:2]]
+        yield f"data: {_json.dumps({'type': 'done', 'path': path, 'total_ms': total_ms, 'stt_ms': stt_ms, 'language': detected_lang, 'full_answer': ' '.join(full_text), 'sources': sources_list, 'latency_ms': {'stt': stt_ms, 'embedding': embed_ms, 'retrieval': ret_ms, 'wiki_retrieval': wiki_ms, 'ttft': ttft_ms, 'generation': gen_ms}})}\n\n"
+
+    return StreamingResponse(voice_event_generator(), media_type="text/event-stream")
 
 
 @app.post("/api/learn")

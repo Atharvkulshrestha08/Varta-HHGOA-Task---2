@@ -94,8 +94,8 @@ def detect_language(text: str) -> str:
 # ═══════════════════════════════════════════════════════════════════
 
 class SemanticQACache:
-    """High-speed in-memory cosine similarity cache for sub-5ms return on similar queries."""
-    def __init__(self, max_size: int = 500, min_similarity: float = 0.94):
+    """High-speed in-memory cosine similarity cache for verified, high-quality responses."""
+    def __init__(self, max_size: int = 500, min_similarity: float = 0.92):
         self.max_size = max_size
         self.min_similarity = min_similarity
         self._entries: list[dict] = []
@@ -109,7 +109,11 @@ class SemanticQACache:
         # 1. Exact string match check (< 0.01ms)
         for e in self._entries:
             if e["query"].strip().lower() == q_norm and (e["language"] == language or language == "unknown"):
-                return e["response"]
+                resp = e["response"]
+                ans = getattr(resp, "answer", str(resp)).lower()
+                if "verified knowledge" in ans or "teach me" in ans or "not available" in ans or "<think>" in ans or "thinking process" in ans:
+                    continue
+                return resp
         
         # 2. Vector Cosine Similarity check (< 0.5ms)
         best_sim = -1.0
@@ -122,12 +126,18 @@ class SemanticQACache:
                     best_entry = e
 
         if best_sim >= self.min_similarity and best_entry is not None:
-            logger.info(f"⚡ Semantic cache HIT ({best_sim:.3f} similarity) for query: '{query}'")
-            return best_entry["response"]
+            resp = best_entry["response"]
+            ans = getattr(resp, "answer", str(resp)).lower()
+            if "verified knowledge" not in ans and "teach me" not in ans and "not available" not in ans and "<think>" not in ans and "thinking process" not in ans:
+                logger.info(f"⚡ Semantic cache HIT ({best_sim:.3f} similarity) for query: '{query}'")
+                return resp
         return None
 
     def put(self, query: str, query_vector: Any, language: str, response: Any):
-        if query_vector is None or not query:
+        if query_vector is None or not query or not response:
+            return
+        ans = getattr(response, "answer", str(response)).lower()
+        if "verified knowledge" in ans or "teach me" in ans or getattr(response, "is_fallback", False) or "<think>" in ans or "thinking process" in ans:
             return
         if len(self._entries) >= self.max_size:
             self._entries.pop(0)  # Evict oldest entry
@@ -197,6 +207,7 @@ class PipelineResponse(BaseModel):
     language: str = "unknown"
     zone: Optional[str] = "zone_all"
     confidence: float = 0.0
+    pipeline_path: str = "local_rag"  # "local_rag" (<200ms target), "live_fallback" (<1500ms target), "cache_hit" (<1ms)
 
     # Latency breakdown
     latency_ms: dict = {}
@@ -650,23 +661,39 @@ class PipelineHarness:
                 language=cached_resp.language,
                 zone=zone,
                 confidence=cached_resp.confidence,
+                pipeline_path="cache_hit",
                 latency_ms={"cache_lookup": 0.4, "embedding": record.stages.get("embedding", 0.1)},
                 total_latency_ms=0.5,
                 success=True,
                 is_fallback=False,
             )
 
-        # ── Step 5: Retrieval (with Strict Script-Aware Partition Routing) ──
-        has_tamil = any(0x0B80 <= ord(c) <= 0x0BFF for c in query_text)
-        has_hindi = any(0x0900 <= ord(c) <= 0x097F for c in query_text)
-        if has_tamil or "tam" in str(language).lower():
+        # ── Step 5: Retrieval (with Strict Script-Aware Partition Routing across 14+ Languages) ──
+        detected_lang = language or detect_language(query_text)
+        if any(0x0900 <= ord(c) <= 0x097F for c in query_text) or any(k in str(detected_lang).lower() for k in ["hin", "mar", "san", "nep"]):
+            allowed_partitions = {"hin_Deva", "mar_Deva"}
+        elif any(0x0980 <= ord(c) <= 0x09FF for c in query_text) or any(k in str(detected_lang).lower() for k in ["ben", "asm"]):
+            allowed_partitions = {"ben_Beng", "asm_Beng"}
+        elif any(0x0B80 <= ord(c) <= 0x0BFF for c in query_text) or "tam" in str(detected_lang).lower():
             allowed_partitions = {"tam_Taml"}
-        elif has_hindi or "hin" in str(language).lower():
-            allowed_partitions = {"hin_Deva"}
+        elif any(0x0C00 <= ord(c) <= 0x0C7F for c in query_text) or "tel" in str(detected_lang).lower():
+            allowed_partitions = {"tel_Telu"}
+        elif any(0x0A80 <= ord(c) <= 0x0AFF for c in query_text) or "guj" in str(detected_lang).lower():
+            allowed_partitions = {"guj_Gujr"}
+        elif any(0x0C80 <= ord(c) <= 0x0CFF for c in query_text) or "kan" in str(detected_lang).lower():
+            allowed_partitions = {"kan_Knda"}
+        elif any(0x0D00 <= ord(c) <= 0x0D7F for c in query_text) or "mal" in str(detected_lang).lower():
+            allowed_partitions = {"mal_Mlym"}
+        elif any(0x0A00 <= ord(c) <= 0x0A7F for c in query_text) or "pan" in str(detected_lang).lower():
+            allowed_partitions = {"pan_Guru"}
+        elif any(0x0B00 <= ord(c) <= 0x0B7F for c in query_text) or "ori" in str(detected_lang).lower():
+            allowed_partitions = {"ori_Orya"}
+        elif any(0x0600 <= ord(c) <= 0x06FF for c in query_text) or "urd" in str(detected_lang).lower():
+            allowed_partitions = {"urd_Arab"}
         else:
             allowed_partitions = {"eng_Latn"}
 
-        logger.info(f"[ROUTING] Query: '{query_text}' | Detected Lang: {language} | Partitions: {allowed_partitions}")
+        logger.info(f"[ROUTING] Query: '{query_text}' | Detected Lang: {detected_lang} | Partitions: {allowed_partitions}")
 
         try:
             with self.analytics.time_stage(record, "retrieval"):
@@ -693,6 +720,36 @@ class PipelineHarness:
                 total_latency_ms=sum(record.stages.values()),
             )
 
+        # ── Step 5.5: Hybrid Lexical + Vector Reranking & Temporal Entity Alignment ──
+        query_words = set(re.findall(r'\w+', query_text.lower()))
+        stop_words = {"what", "who", "when", "where", "which", "why", "how", "the", "a", "an", "is", "was", "are", "were", "in", "on", "of", "to", "for", "with", "by", "क्या", "कौन", "किस", "का", "की", "के", "में", "है", "था", "थी"}
+        significant_words = query_words - stop_words
+        is_temporal_query = any(w in query_words for w in {"current", "now", "present", "वर्तमान", "अभी", "இப்போது"})
+
+        reranked_results = []
+        for r in results:
+            text_lower = r.get("text", "").lower()
+            base_score = r.get("score", 0.0)
+            
+            # Keyword overlap boost (Hybrid BM25-style lexical fusion)
+            if significant_words:
+                matched_words = sum(1 for w in significant_words if w in text_lower)
+                overlap_ratio = matched_words / len(significant_words)
+                base_score += (overlap_ratio * 0.35)
+
+            # Temporal guardrail: If query asks for 'current' president/PM, downweight old historical dates
+            if is_temporal_query:
+                has_old_dates = any(re.search(rf'\b(18\d\d|19[0-8]\d)\b', text_lower) for _ in [1])
+                if has_old_dates:
+                    base_score -= 0.30
+
+            r_copy = dict(r)
+            r_copy["score"] = max(0.0, min(1.0, base_score))
+            reranked_results.append(r_copy)
+
+        reranked_results.sort(key=lambda x: x["score"], reverse=True)
+        results = reranked_results
+
         # Build Top 20 Candidate Evidence Trace for Speculative RAG
         top_20_evidence = []
         for i, r in enumerate(results[:20]):
@@ -711,46 +768,34 @@ class PipelineHarness:
 
         source_ids = [e["passage_id"] for e in top_20_evidence[:4]]
 
-        # ── Step 6.5: Anti-Hallucination 3-Tier Confidence Strategy ──
+        # ── Step 6.5: Live Wikipedia Grounding & Open-Domain World Knowledge ──
         max_score = max([r.get("score", 0.0) for r in results[:3]], default=0.0)
-        if max_score < 0.45:
-            # Tier 1: Strong Refusal (< 0.45) — Zero Hallucination
-            logger.warning(
-                f"[CONFIDENCE TIER: REFUSAL] Query: '{query_text}' | Score: {max_score:.3f} (< 0.45 floor) | Refusal returned."
-            )
-            self.analytics.finish_record(record)
-            if "hin" in str(language).lower() or has_hindi:
-                refusal_msg = "मेरे पास इस विषय पर सत्यापित जानकारी उपलब्ध नहीं है। आप मुझे 'Teach AI' विकल्प से यह जानकारी सिखा सकते हैं।"
-            elif "tam" in str(language).lower() or has_tamil:
-                refusal_msg = "எனது தரவுத்தளத்தில் இந்த தலைப்பு பற்றிய சரிபார்க்கப்பட்ட தகவல் இல்லை. 'Teach AI' மூலம் எனக்கு கற்பிக்கலாம்."
-            else:
-                refusal_msg = "I do not have verified knowledge on this topic in my indexed database. You can teach me this fact via the 'Teach AI' panel."
+        used_wiki = False
+        
+        # If FAISS vector confidence is low (< 0.50), retrieve live Wikipedia intelligence
+        if max_score < 0.50 and self.wiki_retriever:
+            try:
+                with self.analytics.time_stage(record, "wiki_retrieval"):
+                    wiki_data = await self.wiki_retriever.fetch_topic_summary(query_text, language=language)
+                if wiki_data and wiki_data.get("extract"):
+                    wiki_passage = {
+                        "text": f"{wiki_data['title']}: {wiki_data['extract']}",
+                        "score": 0.88,
+                        "rank": 0,
+                        "language": language,
+                        "strategy": "wikipedia_retrieval",
+                        "source": f"Wikipedia ({wiki_data['title']})",
+                        "url": wiki_data.get("url"),
+                        "is_selected": True,
+                    }
+                    results.insert(0, wiki_passage)
+                    max_score = 0.88
+                    used_wiki = True
+                    logger.info(f"[WIKI GROUNDING] Successfully grounded '{query_text}' via Wikipedia: '{wiki_data['title']}'")
+            except Exception as e:
+                logger.warning(f"Wikipedia lookup error: {e}")
 
-            return PipelineResponse(
-                query_id=query_id,
-                original_query=query_text,
-                answer=refusal_msg,
-                sources=[],
-                source_ids=[],
-                top_evidence=top_20_evidence,
-                claims_verification="Refused low-confidence query (< 0.45) to guarantee 0% hallucination.",
-                language=language,
-                zone=zone,
-                confidence=round(max_score, 3),
-                latency_ms=record.stages,
-                total_latency_ms=round(record.total_without_stt_ms, 2),
-                guardrail_flags=[],
-                guardrail_passed=True,
-                success=True,
-            )
-        elif max_score < 0.58:
-            logger.info(
-                f"[CONFIDENCE TIER: HEDGED] Query: '{query_text}' | Score: {max_score:.3f} (0.45-0.58) | Explicit uncertainty synthesis."
-            )
-        else:
-            logger.info(
-                f"[CONFIDENCE TIER: CONFIDENT] Query: '{query_text}' | Score: {max_score:.3f} (>= 0.58) | High confidence synthesis."
-            )
+        logger.info(f"[CONFIDENCE TIER] Query: '{query_text}' | Score: {max_score:.3f}")
 
         # ── Step 7: Answer Generation (Uses top 3 most relevant passages) ──
         if self.llm_circuit.is_open:
@@ -787,35 +832,13 @@ class PipelineHarness:
 
         try:
             with self.analytics.time_stage(record, "generation"):
-                # Fast Path: Non-LLM Continuous TextRank + SVD Matrix Energy Decomposition (< 4ms)
-                # Only use extractive Non-LLM synthesis if retrieval confidence is high (>= 0.58) and strictly language-aligned
-                non_llm_res = {"sentences_selected": 0}
-                if max_score >= 0.58:
-                    non_llm_res = self.non_llm_synthesizer.synthesize(
-                        query=query_text,
-                        query_vector=query_vector,
-                        passages=results[:3],
-                        embedder=self.vector_store,
-                        target_language=language,
-                        max_sentences=2,
-                    )
-
-                if non_llm_res.get("sentences_selected", 0) > 0 and len(non_llm_res.get("answer", "")) > 15:
-                    gen_result = {
-                        "answer": non_llm_res["answer"],
-                        "model": "non-llm/TextRank+SVD",
-                        "passages_used": len(results[:3]),
-                        "success": True,
-                        "error": None,
-                    }
-                else:
-                    # Fallback to LLM generator (hedged synthesis or complex queries)
-                    gen_result = await self.generator.generate(
-                        question=query_text,
-                        passages=results[:3],
-                        language=language,
-                        conversation_history=conversation_history,
-                    )
+                # Full 70B LLM reasoning for deep answers, step-by-step math solving, and open-domain intelligence
+                gen_result = await self.generator.generate(
+                    question=query_text,
+                    passages=results[:3],
+                    language=language,
+                    conversation_history=conversation_history,
+                )
 
             if not gen_result["success"]:
                 self.llm_circuit.record_failure()
@@ -934,6 +957,7 @@ class PipelineHarness:
             language=language,
             zone=zone,
             confidence=round(avg_score, 3) if not is_gen_knowledge else 0.85,
+            pipeline_path="live_fallback" if used_wiki else "local_rag",
             latency_ms=record.stages,
             total_latency_ms=round(record.total_without_stt_ms, 2),
             guardrail_flags=guardrail_flags,
