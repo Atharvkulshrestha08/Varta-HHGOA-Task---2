@@ -131,9 +131,9 @@ async def lifespan(app: FastAPI):
         min_hallucination_overlap=0.15,
     )
 
-    # 6. Initialize Wikipedia retriever
-    wiki_retriever = WikipediaRetriever(timeout=3.5)
-    logger.info("[OK] Multilingual Wikipedia retriever initialized")
+    # 6. Initialize Wikipedia retriever with fast timeout
+    wiki_retriever = WikipediaRetriever(timeout=0.35)
+    logger.info("[OK] Multilingual Wikipedia retriever initialized (<0.35s)")
 
     # 7. Initialize harness & pre-warm embedding model for sub-200ms latency
     harness = PipelineHarness(

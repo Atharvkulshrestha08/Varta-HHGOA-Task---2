@@ -176,8 +176,12 @@ class GroqGenerator:
             "Content-Type": "application/json",
         }
 
+        is_english = lang_key == "eng_Latn" or (not language and question.isascii())
+        primary_model = "allam-2-7b" if is_english else "groq/compound-mini"
+        model_list = [primary_model, "groq/compound-mini", "allam-2-7b", "openai/gpt-oss-20b"]
+
         last_err = None
-        for m_name in self.fallback_models:
+        for m_name in model_list:
             payload = {
                 "model": m_name,
                 "messages": [
