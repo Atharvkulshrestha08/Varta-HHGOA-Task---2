@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "target_root": "C:\\Users\\Atharv\\OneDrive\\Desktop\\HHG\\Task-2",
+    "generation_backend": "unknown",
+    "generation_model_hint": "unknown",
+    "language": "hin",
+    "split": "validation",
+    "num_answerable": 1,
+    "num_unanswerable": 1,
+    "num_examples": 2,
+    "num_chunks": 46,
+    "top_k": 5,
+    "seed": 42,
+    "num_errored": 0
+  },
+  "retrieval": {
+    "check": "retrieval (reference-based)",
+    "num_evaluated": 1,
+    "top_k": 5,
+    "cross_lingual": {
+      "recall_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 1.0
+    },
+    "same_language": {
+      "recall_at_k": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 1.0
+    }
+  },
+  "faithfulness": {
+    "check": "faithfulness / hallucination (reference-free, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "correctness": {
+    "check": "correctness (reference-based, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "reliability": {
+    "check": "reliability / \"lying factor\" (answerable-vs-answered 2x2)",
+    "num_answerable_evaluated": 1,
+    "num_unanswerable_evaluated": 1,
+    "false_refusal_rate": 0.0,
+    "false_refusal_examples": [],
+    "false_confidence_rate": 1.0,
+    "false_confidence_examples": [
+      {
+        "query": "what is mid range dementia",
+        "fabricated_answer": "Dementia is the loss of a person's cognitive, or intellectual, function. those conscious mental tasks that we perform every waking second of every day, from remembering our name to performing complica"
+      }
+    ]
+  },
+  "latency": {
+    "check": "latency",
+    "num_evaluated": 2,
+    "embed": {
+      "avg_ms": 0.19,
+      "p50_ms": 0.14,
+      "p95_ms": 0.33,
+      "p99_ms": 0.36
+    },
+    "search": {
+      "avg_ms": 0.09,
+      "p50_ms": 0.04,
+      "p95_ms": 0.23,
+      "p99_ms": 0.26
+    },
+    "retrieval_total": {
+      "avg_ms": 0.4,
+      "p50_ms": 0.4,
+      "p95_ms": 0.61,
+      "p99_ms": 0.62
+    },
+    "generation": {
+      "avg_ms": 0.04,
+      "p50_ms": 0.04,
+      "p95_ms": 0.04,
+      "p99_ms": 0.04
+    },
+    "retrieval_latency_budget_ms": 50.0,
+    "retrieval_within_budget": true,
+    "generation_latency_target_ms": 1500.0,
+    "generation_within_target": true
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "target_root": "C:\\Users\\Atharv\\OneDrive\\Desktop\\HHG\\Task-2",
+    "generation_backend": "unknown",
+    "generation_model_hint": "unknown",
+    "language": "hin",
+    "split": "validation",
+    "num_answerable": 3,
+    "num_unanswerable": 3,
+    "num_examples": 6,
+    "num_chunks": 133,
+    "top_k": 5,
+    "seed": 42,
+    "num_errored": 0
+  },
+  "retrieval": {
+    "check": "retrieval (reference-based)",
+    "num_evaluated": 3,
+    "top_k": 5,
+    "cross_lingual": {
+      "recall_at_k": {
+        "1": 0.6667,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.8333
+    },
+    "same_language": {
+      "recall_at_k": {
+        "1": 0.6667,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.8333
+    }
+  },
+  "faithfulness": {
+    "check": "faithfulness / hallucination (reference-free, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "correctness": {
+    "check": "correctness (reference-based, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "reliability": {
+    "check": "reliability / \"lying factor\" (answerable-vs-answered 2x2)",
+    "num_answerable_evaluated": 3,
+    "num_unanswerable_evaluated": 3,
+    "false_refusal_rate": 0.0,
+    "false_refusal_examples": [],
+    "false_confidence_rate": 1.0,
+    "false_confidence_examples": [
+      {
+        "query": "what is wealth gov and econ definition",
+        "fabricated_answer": "Definition of Wealth. Wealth, in its simplest terms, is the value of all the resources that are possessed by an individual or society. In other words, someone's wealth is determined by the aggregate v"
+      },
+      {
+        "query": "hexadecimal numbers to binary numbers",
+        "fabricated_answer": "To convert binary numbers into hexadecimal numbers we must first divide the binary number up into a 4-bit binary word which can have any value from 010 ( 00002 ) to 1510 ( 11112 ) representing the hex"
+      },
+      {
+        "query": "what is the scorebridge app used for",
+        "fabricated_answer": "The app interface is OK - nothing special. Scorebridge for mac: 01 and 5, and XHTML 1. Samsung galaxy ace s5830i bedienungsanleitung pdf: You can use one of the included templates for smslibx project,"
+      }
+    ]
+  },
+  "latency": {
+    "check": "latency",
+    "num_evaluated": 6,
+    "embed": {
+      "avg_ms": 0.16,
+      "p50_ms": 0.14,
+      "p95_ms": 0.32,
+      "p99_ms": 0.43
+    },
+    "search": {
+      "avg_ms": 0.09,
+      "p50_ms": 0.03,
+      "p95_ms": 0.31,
+      "p99_ms": 0.44
+    },
+    "retrieval_total": {
+      "avg_ms": 0.29,
+      "p50_ms": 0.16,
+      "p95_ms": 0.77,
+      "p99_ms": 0.9
+    },
+    "generation": {
+      "avg_ms": 0.03,
+      "p50_ms": 0.03,
+      "p95_ms": 0.04,
+      "p99_ms": 0.04
+    },
+    "retrieval_latency_budget_ms": 50.0,
+    "retrieval_within_budget": true,
+    "generation_latency_target_ms": 1500.0,
+    "generation_within_target": true
+  }
+}

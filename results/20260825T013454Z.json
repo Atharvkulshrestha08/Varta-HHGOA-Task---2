@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "target_root": "C:\\Users\\Atharv\\OneDrive\\Desktop\\HHG\\Task-2",
+    "generation_backend": "unknown",
+    "generation_model_hint": "unknown",
+    "language": "hin",
+    "split": "validation",
+    "num_answerable": 25,
+    "num_unanswerable": 25,
+    "num_examples": 50,
+    "num_chunks": 1166,
+    "top_k": 5,
+    "seed": 42,
+    "num_errored": 0
+  },
+  "retrieval": {
+    "check": "retrieval (reference-based)",
+    "num_evaluated": 25,
+    "top_k": 5,
+    "cross_lingual": {
+      "recall_at_k": {
+        "1": 0.36,
+        "3": 0.56,
+        "5": 0.72
+      },
+      "mrr": 0.4847
+    },
+    "same_language": {
+      "recall_at_k": {
+        "1": 0.36,
+        "3": 0.56,
+        "5": 0.72
+      },
+      "mrr": 0.4847
+    }
+  },
+  "faithfulness": {
+    "check": "faithfulness / hallucination (reference-free, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "correctness": {
+    "check": "correctness (reference-based, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "reliability": {
+    "check": "reliability / \"lying factor\" (answerable-vs-answered 2x2)",
+    "num_answerable_evaluated": 25,
+    "num_unanswerable_evaluated": 25,
+    "false_refusal_rate": 0.0,
+    "false_refusal_examples": [],
+    "false_confidence_rate": 1.0,
+    "false_confidence_examples": [
+      {
+        "query": "what is that cluster of stars near taurus",
+        "fabricated_answer": "In the year 1054 a massive star near the tip of the horn of Taurus exploded. What are Nebulae? Table of Messier Objects. What is apparent Magnitude? Star Clusters M45, Pleiades or Seven Sisters (Galac"
+      },
+      {
+        "query": "begher republic  definition",
+        "fabricated_answer": "Definition of Chrome in the Definitions.net dictionary. Meaning of Chrome. What does Chrome mean? Information and translations of Chrome in the most comprehensive dictionary definitions resource on th"
+      },
+      {
+        "query": "the ant and the dove fable",
+        "fabricated_answer": "Aesop's Fable: The Ant and the Dove. Print, read and discuss the fable. The fable will print in the top half of the paper. Have children draw and color an ant and/or dove or an illustration of the fab"
+      },
+      {
+        "query": "how is cultural transmission theory related to the concentric zone hypothesis? .",
+        "fabricated_answer": "Cultural Transmission Theory. V. Subcultural Theories Today. More recently, scholars of the subcultural tradition have focused on the dynamics of contemporary urban America, including widespread joble"
+      },
+      {
+        "query": "how to request to uscis to cancel visa",
+        "fabricated_answer": "Submit an e-Request: You can submit an e-Request, given you have the receipt number at https://egov.uscis.gov/e-request/Case.do. You may need to wait at least 30 days, if you want to notify to the USC"
+      }
+    ]
+  },
+  "latency": {
+    "check": "latency",
+    "num_evaluated": 50,
+    "embed": {
+      "avg_ms": 0.21,
+      "p50_ms": 0.2,
+      "p95_ms": 0.38,
+      "p99_ms": 0.5
+    },
+    "search": {
+      "avg_ms": 1.54,
+      "p50_ms": 1.15,
+      "p95_ms": 3.49,
+      "p99_ms": 3.85
+    },
+    "retrieval_total": {
+      "avg_ms": 1.79,
+      "p50_ms": 1.41,
+      "p95_ms": 3.62,
+      "p99_ms": 4.22
+    },
+    "generation": {
+      "avg_ms": 0.04,
+      "p50_ms": 0.03,
+      "p95_ms": 0.06,
+      "p99_ms": 0.1
+    },
+    "retrieval_latency_budget_ms": 50.0,
+    "retrieval_within_budget": true,
+    "generation_latency_target_ms": 1500.0,
+    "generation_within_target": true
+  }
+}

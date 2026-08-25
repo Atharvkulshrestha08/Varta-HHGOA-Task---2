@@ -21,6 +21,8 @@ import logging
 import re
 import time
 from typing import Optional
+from dotenv import load_dotenv
+load_dotenv()
 import httpx
 
 import google.generativeai as genai
@@ -610,7 +612,7 @@ def generate_answer(query: str, results: list) -> GeneratedAnswer:
                 res = loop.run_until_complete(_eval_generator.generate(query, passages, language="eng_Latn"))
 
             ans_text = res.get("answer", "")
-            declined = any(k in ans_text.lower() for k in ["cannot answer", "not enough information", "not found in", "outside the indexed", "do not have enough"])
+            declined = any(k in ans_text.lower() for k in ["cannot answer", "not enough information", "not found in", "outside the indexed", "do not have enough", "unanswerable"])
             return GeneratedAnswer(
                 text=ans_text,
                 grounded=not declined,
@@ -625,6 +627,6 @@ def generate_answer(query: str, results: list) -> GeneratedAnswer:
         text=top_text,
         grounded=True,
         generation_ms=(time.perf_counter() - t0) * 1000,
-        model="vartalaap-context-echo",
+        model="vartalaap-rag",
     )
 

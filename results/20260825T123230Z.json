@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "target_root": "C:\\Users\\Atharv\\OneDrive\\Desktop\\HHG\\Task-2",
+    "generation_backend": "unknown",
+    "generation_model_hint": "unknown",
+    "language": "hin",
+    "split": "validation",
+    "num_answerable": 3,
+    "num_unanswerable": 3,
+    "num_examples": 6,
+    "num_chunks": 133,
+    "top_k": 5,
+    "seed": 42,
+    "num_errored": 0
+  },
+  "retrieval": {
+    "check": "retrieval (reference-based)",
+    "num_evaluated": 3,
+    "top_k": 5,
+    "cross_lingual": {
+      "recall_at_k": {
+        "1": 0.6667,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.8333
+    },
+    "same_language": {
+      "recall_at_k": {
+        "1": 0.6667,
+        "3": 1.0,
+        "5": 1.0
+      },
+      "mrr": 0.8333
+    }
+  },
+  "faithfulness": {
+    "check": "faithfulness / hallucination (reference-free, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "correctness": {
+    "check": "correctness (reference-based, LLM-as-judge)",
+    "num_evaluated": 0,
+    "error": "OPENAI_API_KEY not configured -- judge-based checks skipped."
+  },
+  "reliability": {
+    "check": "reliability / \"lying factor\" (answerable-vs-answered 2x2)",
+    "num_answerable_evaluated": 3,
+    "num_unanswerable_evaluated": 3,
+    "false_refusal_rate": 0.0,
+    "false_refusal_examples": [],
+    "false_confidence_rate": 1.0,
+    "false_confidence_examples": [
+      {
+        "query": "what is wealth gov and econ definition",
+        "fabricated_answer": "According to the provided passages, the definitions of wealth from a government (Gov) and economics (econ) perspective are similar. Wealth, in its simplest terms, is the value of all the resources pos"
+      },
+      {
+        "query": "hexadecimal numbers to binary numbers",
+        "fabricated_answer": "To convert a hexadecimal number to binary, you need to follow these steps:\n\n1. Determine the hexadecimal number's value in decimal.\n2. Divide the decimal number by 16.\n3. Write down the remainder as t"
+      },
+      {
+        "query": "what is the scorebridge app used for",
+        "fabricated_answer": "The Scorebridge app is primarily used for customizing the display settings on a system, offering features like changing the background image and managing email accounts from services like Outlook, Exc"
+      }
+    ]
+  },
+  "latency": {
+    "check": "latency",
+    "num_evaluated": 6,
+    "embed": {
+      "avg_ms": 0.2,
+      "p50_ms": 0.18,
+      "p95_ms": 0.36,
+      "p99_ms": 0.4
+    },
+    "search": {
+      "avg_ms": 0.13,
+      "p50_ms": 0.08,
+      "p95_ms": 0.37,
+      "p99_ms": 0.57
+    },
+    "retrieval_total": {
+      "avg_ms": 0.42,
+      "p50_ms": 0.3,
+      "p95_ms": 0.87,
+      "p99_ms": 1.0
+    },
+    "generation": {
+      "avg_ms": 251.44,
+      "p50_ms": 192.99,
+      "p95_ms": 486.27,
+      "p99_ms": 549.84
+    },
+    "retrieval_latency_budget_ms": 50.0,
+    "retrieval_within_budget": true,
+    "generation_latency_target_ms": 1500.0,
+    "generation_within_target": true
+  }
+}
