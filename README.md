@@ -1,3 +1,9 @@
+> ### 🛡️ Author & Original Creator
+> **Atharv Kulshrestha** — [@Atharvkulshrestha08](https://github.com/Atharvkulshrestha08)  
+> *This repository and its codebase are the original work of Atharv Kulshrestha. All rights reserved.*
+
+---
+
 <p align="center">
   <img src="static/logo.png" alt="VartaLaap Logo" width="380" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
 </p>
